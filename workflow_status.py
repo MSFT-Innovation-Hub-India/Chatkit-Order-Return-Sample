@@ -13,7 +13,7 @@ This is a GENERIC framework - each domain use case provides its own tool status
 messages. See use_cases/retail/tool_status.py for an example.
 
 Usage:
-    from core.workflow_status import create_tool_status_hooks
+    from workflow_status import create_tool_status_hooks
     from use_cases.retail.tool_status import RETAIL_TOOL_STATUS_MESSAGES
     
     hooks, tracker = create_tool_status_hooks(
@@ -181,7 +181,7 @@ class ToolStatusHooks(RunHooks):
     The actual status messages come from the ToolExecutionTracker's tool_messages.
     
     Example:
-        from core.workflow_status import create_tool_status_hooks
+        from workflow_status import create_tool_status_hooks
         from use_cases.retail.tool_status import RETAIL_TOOL_STATUS_MESSAGES
         
         hooks, tracker = create_tool_status_hooks(

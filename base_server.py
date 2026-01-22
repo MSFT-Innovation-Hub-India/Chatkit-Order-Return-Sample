@@ -31,7 +31,7 @@ from agents.models.openai_responses import OpenAIResponsesModel
 
 from azure_client import client_manager
 from config import settings
-from core.workflow_status import create_tool_status_hooks
+from workflow_status import create_tool_status_hooks
 
 logger = logging.getLogger(__name__)
 

@@ -1024,7 +1024,7 @@ class RetailChatKitServer(BaseChatKitServer):
         agent = self.get_agent()
         
         # Create workflow status hooks for ChatGPT-style progress indicators
-        from core.workflow_status import create_tool_status_hooks
+        from workflow_status import create_tool_status_hooks
         from use_cases.retail.tool_status import RETAIL_TOOL_STATUS_MESSAGES
         
         hooks, tracker = create_tool_status_hooks(

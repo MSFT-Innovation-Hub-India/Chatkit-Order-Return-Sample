@@ -181,6 +181,7 @@ chatkit-order-returns/
 ├── config.py                # Configuration management (incl. branding)
 ├── base_server.py           # Reusable base server with Azure OpenAI
 ├── azure_client.py          # Azure OpenAI client manager
+├── workflow_status.py       # ChatGPT-style tool execution status
 ├── requirements.txt         # Python dependencies
 ├── Dockerfile               # Container build configuration
 ├── azure.yaml               # Azure Developer CLI configuration
@@ -188,10 +189,10 @@ chatkit-order-returns/
 ├── .env.example             # Environment variables template
 │
 ├── docs/                    # Documentation
+│   ├── ADDING_USE_CASES.md  # Guide to add new domains (healthcare, etc.)
 │   ├── WORKFLOW_STATUS.md   # Tool execution status guide
 │   ├── DUAL_INPUT_ARCHITECTURE.md  # Widget + text input docs
-│   ├── AZURE_OPENAI_ADAPTATIONS.md # Azure OpenAI setup
-│   └── INDUSTRY_USE_CASES.md       # Domain extension examples
+│   └── AZURE_OPENAI_ADAPTATIONS.md # Azure OpenAI setup
 │
 ├── frontend/                # React frontend (official ChatKit UI)
 │   ├── package.json         # Node.js dependencies
@@ -200,30 +201,15 @@ chatkit-order-returns/
 │   │   └── main.tsx         # React entry point
 │   └── vite.config.ts       # Vite build configuration
 │
-├── core/                    # Extensible framework base classes
-│   ├── domain.py            # PolicyEngine, DomainService, Validator
-│   ├── data.py              # Repository pattern for data access
-│   ├── presentation.py      # WidgetComposer, WidgetTheme
-│   ├── session.py           # SessionContext, SessionManager
-│   ├── orchestration.py     # UseCaseServer base class
-│   ├── workflow_status.py   # Tool execution status streaming (generic)
-│   └── template.py          # Documentation for creating new use cases
-│
 ├── use_cases/
-│   ├── retail/              # Retail order returns use case
-│   │   ├── __init__.py      # Exports RetailChatKitServer
-│   │   ├── server.py        # ChatKit server for retail returns
-│   │   ├── tools.py         # Tools for order lookup, returns, etc.
-│   │   ├── tool_status.py   # Retail tool status messages
-│   │   ├── cosmos_client.py # Cosmos DB client for retail data
-│   │   ├── cosmos_store.py  # ChatKit thread storage in Cosmos DB
-│   │   ├── widgets.py       # Widget building functions
-│   │   └── sample_data.py   # Sample retail data
-│   │
-│   └── healthcare/          # Healthcare appointment scheduling (example)
-│       ├── __init__.py      # Exports HealthcareChatKitServer
-│       ├── server.py        # ChatKit server extending UseCaseServer
-│       └── tool_status.py   # Healthcare tool status messages (example)
+│   └── retail/              # Retail order returns (reference implementation)
+│       ├── __init__.py      # Exports RetailChatKitServer
+│       ├── server.py        # ChatKit server for retail returns
+│       ├── tools.py         # Agent function tools
+│       ├── tool_status.py   # Status messages for workflow indicators
+│       ├── widgets.py       # Widget building functions
+│       ├── cosmos_client.py # Cosmos DB client for retail data
+│       └── cosmos_store.py  # ChatKit thread storage in Cosmos DB
 │
 ├── static/
 │   ├── index.html           # Vanilla JS frontend (fallback)
@@ -677,57 +663,36 @@ az role assignment create \
 
 ## 🧩 Extending with New Use Cases
 
-This project uses a **layered architecture** that separates concerns and enables easy extension. See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed documentation.
+This project is designed to be extended for other industries and scenarios. The retail implementation serves as a **reference pattern** that you can copy and adapt.
 
-### Layered Architecture
+### Adding a New Domain
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  ORCHESTRATION LAYER - UseCaseServer (extends ChatKitServer)               │
-│    • Wires all layers together                                              │
-│    • Handles ChatKit protocol (respond, action, widgets)                    │
-└─────────────────────────────────────────────────────────────────────────────┘
-                          │
-          ┌───────────────┼───────────────┐
-          ▼               ▼               ▼
-┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
-│  DOMAIN LAYER   │ │  DATA LAYER     │ │  PRESENTATION   │
-│  PolicyEngine   │ │  Repository     │ │  WidgetComposer │
-│  DomainService  │ │  CosmosClient   │ │  WidgetTheme    │
-│                 │ │                 │ │                 │
-│  Pure logic     │ │  Data access    │ │  Widget build   │
-│  No I/O         │ │  CRUD ops       │ │  Formatting     │
-└─────────────────┘ └─────────────────┘ └─────────────────┘
-```
+For a step-by-step guide, see **[docs/ADDING_USE_CASES.md](docs/ADDING_USE_CASES.md)**.
 
-### Quick Guide to Create a New Use Case
+**Quick overview:**
 
-1. **Create the folder structure:**
+1. **Copy the retail folder structure:**
    ```
-   use_cases/my_use_case/
+   use_cases/your_domain/
    ├── __init__.py
-   ├── server.py           # Extend UseCaseServer
-   ├── session.py          # Extend SessionContext
-   ├── domain/
-   │   ├── policies.py     # Extend PolicyEngine
-   │   └── services.py     # Extend DomainService
-   └── presentation/
-       └── composer.py     # Extend WidgetComposer
+   ├── server.py       # Your ChatKit server (copy from retail)
+   ├── tools.py        # Agent function tools for your domain
+   ├── tool_status.py  # Status messages for tool execution
+   ├── widgets.py      # Widget builders for your domain
+   └── cosmos_client.py # Data access (if needed)
    ```
 
-2. **Implement each layer:**
-   - **Domain Layer**: Pure business rules (no I/O, easily unit tested)
-   - **Data Layer**: Repository pattern for Cosmos DB access
-   - **Presentation Layer**: WidgetComposer with theme support
-   - **Session**: Track conversation state and flow steps
+2. **Customize for your domain:**
+   - Replace tools with your business logic
+   - Add domain-specific widgets
+   - Define tool status messages
 
-3. **Extend base classes from `core/`:**
-   - `UseCaseServer` - Main server class
-   - `PolicyEngine` - Business rules
-   - `WidgetComposer` - Widget building
-   - `SessionContext` - State management
+3. **Real extensibility via `core/workflow_status.py`:**
+   - Provides ChatGPT-style progress indicators
+   - Your `tool_status.py` provides domain-specific messages
+   - See [docs/WORKFLOW_STATUS.md](docs/WORKFLOW_STATUS.md) for details
 
-4. **See the healthcare example** in `use_cases/healthcare/` for a complete skeleton.
+**Example domains:** Healthcare (appointments), Banking (transactions), Travel (bookings), HR (employee onboarding)
 
 ## 🤝 Contributing
 

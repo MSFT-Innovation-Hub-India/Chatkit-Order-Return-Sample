@@ -2,6 +2,8 @@
 
 This document contains Mermaid diagrams showing the class hierarchy, component relationships, and end-to-end flow of the application.
 
+> ⚠️ **Note**: Some diagrams reference abstract base classes (PolicyEngine, WidgetComposer, etc.) that were part of an earlier layered architecture design. The current implementation uses a simpler, pattern-based approach where you copy the retail folder. See [ADDING_USE_CASES.md](ADDING_USE_CASES.md) for the current guidance.
+
 ## Table of Contents
 
 ### Class Diagrams

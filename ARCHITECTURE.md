@@ -10,7 +10,7 @@ This document explains the modular architecture of this ChatKit sample project, 
 2. [Server-Driven UI: The Core Concept](#server-driven-ui-the-core-concept)
 3. [How Widget Rendering Works](#how-widget-rendering-works)
 4. [Architecture Overview](#architecture-overview)
-5. [Layered Architecture: The Core Framework](#layered-architecture-the-core-framework)
+5. [Simplified Architecture](#simplified-architecture)
 6. [ChatKit Server: Middleware or Backend?](#chatkit-server-middleware-or-backend)
 7. [Production Deployment Patterns](#production-deployment-patterns)
 8. [Project Structure](#project-structure)
@@ -569,129 +569,64 @@ function WidgetRenderer({ component }) {
 
 ---
 
-## Layered Architecture: The Core Framework
+## Simplified Architecture
 
-This project implements a **layered architecture** that separates concerns and enables extensibility. The `core/` module provides base classes that all use cases extend.
+This project uses a **practical, pattern-based architecture** rather than abstract base classes. The retail implementation serves as a reference that you can copy and adapt for other domains.
 
-### The Four Layers
+### Key Components
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                    1. ORCHESTRATION LAYER                            │   │
-│  │                                                                       │   │
-│  │  • UseCaseServer - Extends ChatKitServer                             │   │
-│  │  • ToolRegistry - Manages agent tools                                │   │
-│  │  • SessionManager - Tracks conversation state                        │   │
-│  │  • Handles ChatKit protocol (respond, action, widgets)               │   │
-│  │                                                                       │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
+│                           YOUR CHATKIT SERVER                               │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │  use_cases/retail/server.py                                           │  │
+│  │    • ChatKit protocol (respond, action, widgets)                      │  │
+│  │    • Agent configuration and tools                                    │  │
+│  │    • Widget streaming and action handling                             │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
 │                              │                                              │
 │              ┌───────────────┼───────────────┐                              │
 │              ▼               ▼               ▼                              │
 │  ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐               │
 │  │                 │ │                 │ │                 │               │
-│  │  2. DOMAIN      │ │  3. DATA        │ │  4. PRESENTATION│               │
-│  │     LAYER       │ │     LAYER       │ │     LAYER       │               │
+│  │  tools.py       │ │  cosmos_client  │ │  widgets.py     │               │
 │  │                 │ │                 │ │                 │               │
-│  │  PolicyEngine   │ │  Repository     │ │  WidgetComposer │               │
-│  │  DomainService  │ │  QueryOptions   │ │  WidgetTheme    │               │
-│  │  Validator      │ │  CachingRepo    │ │  TextFormatter  │               │
-│  │                 │ │                 │ │                 │               │
-│  │  ────────────── │ │  ────────────── │ │  ────────────── │               │
-│  │  • Pure logic   │ │  • Data access  │ │  • Widget build │               │
-│  │  • No I/O       │ │  • CRUD ops     │ │  • Formatting   │               │
-│  │  • Unit tests   │ │  • Cosmos DB    │ │  • Theming      │               │
+│  │  Agent function │ │  Data access    │ │  Widget builders│               │
+│  │  tools with     │ │  Cosmos DB      │ │  for rich UI    │               │
+│  │  business logic │ │  queries        │ │  components     │               │
 │  └─────────────────┘ └─────────────────┘ └─────────────────┘               │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Core Module Structure
+### Project Structure
 
 ```
-core/
-├── __init__.py         # Exports all base classes
-├── domain.py           # PolicyEngine, DomainService, Validator
-├── data.py             # Repository, QueryOptions, CachingRepository
-├── presentation.py     # WidgetComposer, WidgetTheme, TextFormatter
-├── orchestration.py    # UseCaseServer, ToolRegistry
-├── session.py          # SessionContext, SessionManager
-└── template.py         # Documentation for creating new use cases
+workflow_status.py       # ChatGPT-style tool execution status (reusable)
+
+use_cases/retail/        # Reference implementation
+├── server.py            # ChatKit server
+├── tools.py             # Agent function tools  
+├── tool_status.py       # Domain-specific status messages
+├── widgets.py           # Widget builder functions
+├── cosmos_client.py     # Data access
+└── cosmos_store.py      # Thread storage
 ```
 
-### Layer Responsibilities
+### Key Patterns
 
-| Layer | Responsibility | Dependencies | Example Classes |
-|-------|---------------|--------------|-----------------|
-| **Domain** | Business rules, calculations | None (pure) | `ReturnEligibilityPolicy`, `RefundCalculator` |
-| **Data** | Database access, CRUD | Cosmos SDK | `RetailCosmosClient`, `CosmosDBStore` |
-| **Presentation** | Widget composition | ChatKit widgets | `ReturnWidgetComposer` |
-| **Orchestration** | Wire everything together | All layers | `RetailChatKitServer` |
+| Pattern | Description | Example |
+|---------|-------------|---------|
+| **Tool Status** | ChatGPT-style progress indicators during tool execution | `workflow_status.py` + `tool_status.py` |
+| **Widget Builders** | Functions that build ChatKit widgets from data | `widgets.py` |
+| **Session State** | Thread-based state with step tracking | `server.py` session dict |
+| **Action Handling** | Server processes widget clicks/submissions | `handle_action()` method |
 
-### Key Base Classes
+### Adding New Use Cases
 
-#### PolicyEngine (Domain Layer)
+See **[docs/ADDING_USE_CASES.md](docs/ADDING_USE_CASES.md)** for a step-by-step guide to creating new domains (healthcare, banking, travel, etc.).
 
-```python
-from core.domain import PolicyEngine, PolicyDecision, PolicyResult
-
-class ReturnEligibilityPolicy(PolicyEngine):
-    def evaluate(self, context: dict) -> PolicyDecision:
-        if context["days_since_purchase"] > 30:
-            return PolicyDecision(
-                result=PolicyResult.DENIED,
-                reason="Return window expired"
-            )
-        return PolicyDecision(
-            result=PolicyResult.APPROVED,
-            reason="Eligible for return"
-        )
-```
-
-#### WidgetComposer (Presentation Layer)
-
-```python
-from core.presentation import WidgetComposer
-
-class MyWidgetComposer(WidgetComposer):
-    def get_widget_builders(self) -> Dict[str, Callable]:
-        return {
-            "items": self.compose_items_list,
-            "confirmation": self.compose_confirmation,
-        }
-    
-    def compose_items_list(self, items: list, thread_id: str) -> Card:
-        # Build ChatKit widgets from data
-        ...
-```
-
-#### UseCaseServer (Orchestration Layer)
-
-```python
-from core.orchestration import UseCaseServer
-
-class MyChatKitServer(UseCaseServer):
-    def get_system_prompt(self) -> str:
-        return "You are a helpful assistant..."
-    
-    def get_agent(self) -> Agent:
-        return Agent(name="My Agent", tools=self.tool_registry.get_tools())
-    
-    def create_widget_composer(self) -> WidgetComposer:
-        return MyWidgetComposer()
-```
-
-### Benefits of This Architecture
-
-| Benefit | Description |
-|---------|-------------|
-| **Separation of Concerns** | Each layer has a single responsibility |
-| **Testability** | Domain layer can be unit tested without mocking |
-| **Reusability** | Policies and services can be shared across use cases |
-| **Consistency** | All use cases follow the same pattern |
-| **Extensibility** | Add new use cases by implementing the interfaces |
+The approach is simple: **copy the retail folder and customize it** for your domain.
 
 ---
 
@@ -864,49 +799,20 @@ chatkit-order-returns/
 ├── base_server.py          # Reusable base server with Azure OpenAI integration
 ├── azure_client.py         # Azure OpenAI client management
 ├── config.py               # Environment configuration (Azure + branding settings)
-│
-├── core/                   # Extensible framework base classes
-│   ├── __init__.py         # Exports all base classes
-│   ├── domain.py           # PolicyEngine, DomainService, Validator
-│   ├── data.py             # Repository pattern for data access
-│   ├── presentation.py     # WidgetComposer, WidgetTheme, TextFormatter
-│   ├── session.py          # SessionContext, SessionManager
-│   ├── orchestration.py    # UseCaseServer (extends ChatKitServer)
-│   └── template.py         # Documentation for creating new use cases
-│
-├── shared/                 # Shared configuration modules
-│   └── cosmos_config.py    # Centralized Cosmos DB configuration
-│
-├── scripts/                # Utility scripts
-│   └── populate_cosmosdb.py # Script to populate Cosmos DB with sample data
-│
-├── data/
-│   └── sample/             # Sample data definitions
-│       └── retail_data.py  # Products, customers, orders, returns data
+├── workflow_status.py      # ChatGPT-style tool execution status (reusable)
 │
 ├── use_cases/
-│   ├── retail/             # Retail order returns use case (PRODUCTION)
-│   │   ├── __init__.py     # Exports RetailChatKitServer + components
-│   │   ├── server.py       # RetailChatKitServer (extends BaseChatKitServer)
-│   │   ├── session.py      # ReturnSessionContext
-│   │   ├── tools.py        # Tools for order lookup, returns, etc.
-│   │   ├── cosmos_client.py # Cosmos DB client for retail data
-│   │   ├── cosmos_store.py # ChatKit thread storage in Cosmos DB
-│   │   ├── domain/         # Pure business logic (no I/O)
-│   │   │   ├── policies.py # ReturnEligibilityPolicy, RefundPolicy
-│   │   │   └── services.py # RefundCalculator, ReturnRequestBuilder
-│   │   └── presentation/   # Widget composition
-│   │       └── composer.py # ReturnWidgetComposer
-│   │
-│   └── healthcare/         # Healthcare appointment scheduling (EXAMPLE)
-│       ├── __init__.py     # Exports HealthcareChatKitServer
-│       ├── server.py       # HealthcareChatKitServer (extends UseCaseServer)
-│       ├── session.py      # AppointmentSessionContext
-│       ├── domain/         # Pure business logic
-│       │   ├── policies.py # SchedulingRules, CancellationPolicy
-│       │   └── services.py # ScheduleCalculator, ConflictChecker
-│       └── presentation/   # Widget composition
-│           └── composer.py # AppointmentWidgetComposer
+│   └── retail/             # Retail order returns (reference implementation)
+│       ├── __init__.py     # Exports RetailChatKitServer
+│       ├── server.py       # ChatKit server for retail returns
+│       ├── tools.py        # Agent function tools
+│       ├── tool_status.py  # Domain-specific status messages
+│       ├── widgets.py      # Widget builder functions
+│       ├── cosmos_client.py # Cosmos DB client for retail data
+│       └── cosmos_store.py # ChatKit thread storage in Cosmos DB
+│
+├── scripts/                # Utility scripts
+│   └── populate_cosmosdb.py # Cosmos DB sample data setup
 │
 ├── frontend/               # React frontend (official ChatKit UI)
 │   ├── package.json
@@ -918,9 +824,10 @@ chatkit-order-returns/
 │   └── logo.svg            # Default logo (replaceable)
 │
 ├── docs/                   # Documentation
+│   ├── ADDING_USE_CASES.md # Guide for new domains
+│   ├── WORKFLOW_STATUS.md  # Tool execution status docs
 │   ├── DIAGRAMS.md         # Mermaid class and sequence diagrams
-│   ├── INDUSTRY_USE_CASES.md # Industry use case examples
-│   └── AZURE_OPENAI_ADAPTATIONS.md # Azure OpenAI integration details
+│   └── AZURE_OPENAI_ADAPTATIONS.md # Azure OpenAI integration
 │
 └── infra/
     ├── main.bicep          # Azure infrastructure as code
@@ -988,46 +895,28 @@ if (!threadId) {
 
 ## Core Components
 
-### 1. Core Framework (`core/`)
+### 1. Shared Utilities (`core/`)
 
-The `core/` module provides extensible base classes for all use cases:
+The `core/` module contains reusable utilities:
 
-| File | Classes | Purpose |
-|------|---------|---------|
-| `domain.py` | `PolicyEngine`, `DomainService`, `Validator` | Pure business logic (no I/O) |
-| `data.py` | `Repository`, `QueryOptions`, `CachingRepository` | Data access abstraction |
-| `presentation.py` | `WidgetComposer`, `WidgetTheme`, `TextFormatter` | Widget building with theming |
-| `session.py` | `SessionContext`, `SessionManager` | Conversation state tracking |
-| `orchestration.py` | `UseCaseServer`, `ToolRegistry` | Server base class, tool management |
+| File | Purpose |
+|------|---------|
+| `workflow_status.py` | ChatGPT-style tool execution status streaming |
 
-**Key Base Classes:**
+**Tool Execution Status Pattern:**
 
 ```python
-# Pure business rules - no I/O, easily tested
-class PolicyEngine(ABC):
-    @abstractmethod
-    def evaluate(self, context: dict) -> PolicyDecision: ...
+from workflow_status import stream_tool_status, finalize_workflow
 
-# Widget composition with theming
-class WidgetComposer(ABC):
-    def compose(self, widget_type: str, data: Any, thread_id: str) -> Widget:
-        builder = self.get_widget_builders().get(widget_type)
-        return builder(data, thread_id)
+# In your respond() method, stream status updates during tool execution
+async for event in stream_tool_status(runner, tool_status_map, workflow, ...):
+    yield event
 
-# Session state tracking
-@dataclass
-class SessionContext:
-    thread_id: str
-    customer_id: str = ""
-    selections: Dict[str, Any] = field(default_factory=dict)
-    
-# Use case server (extends ChatKitServer)
-class UseCaseServer(ChatKitServer, ABC):
-    @abstractmethod
-    def get_agent(self) -> Agent: ...
-    @abstractmethod
-    def create_widget_composer(self) -> WidgetComposer: ...
+# Finalize the workflow when complete
+await finalize_workflow(workflow)
 ```
+
+Each domain provides its own `tool_status.py` with status messages.
 
 ### 2. BaseChatKitServer (`base_server.py`)
 
@@ -1064,26 +953,21 @@ class BaseChatKitServer(ChatKitServer):
 
 ### 3. Use Case Modules (`use_cases/`)
 
-Each use case follows the layered architecture pattern:
+Each use case follows a simple pattern (copy from retail):
 
 ```
 use_cases/{name}/
 ├── __init__.py         # Public exports
-├── server.py           # Extends UseCaseServer or BaseChatKitServer
-├── session.py          # Extends SessionContext
+├── server.py           # Extends BaseChatKitServer
 ├── tools.py            # @function_tool decorated functions
-├── domain/             # Pure business logic
-│   ├── policies.py     # Extends PolicyEngine
-│   └── services.py     # Extends DomainService
-├── presentation/       # Widget composition
-│   └── composer.py     # Extends WidgetComposer
-└── data/               # Data access (optional)
-    └── repository.py   # Extends Repository
+├── tool_status.py      # Status messages for workflow indicators
+├── widgets.py          # Widget builder functions
+└── cosmos_client.py    # Data access (optional)
 ```
 
 ### 4. Specific ChatKit Server (e.g., `server.py`)
 
-Your use-case-specific server extends `BaseChatKitServer` or `UseCaseServer`:
+Your use-case-specific server extends `BaseChatKitServer`:
 
 ```python
 class RetailChatKitServer(BaseChatKitServer):
@@ -1930,289 +1814,82 @@ class RetailChatKitServer(BaseChatKitServer):
 
 ## Creating a New Use Case
 
-This project uses a **layered architecture** that separates concerns and makes it easy to add new use cases. Each use case follows the same pattern with four layers:
+For a complete step-by-step guide, see **[docs/ADDING_USE_CASES.md](docs/ADDING_USE_CASES.md)**.
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           USE CASE ARCHITECTURE                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                    ORCHESTRATION LAYER                               │   │
-│  │  server.py - UseCaseServer subclass                                  │   │
-│  │  tools.py  - Agent tools (@function_tool decorated)                  │   │
-│  │  • Wires everything together                                         │   │
-│  │  • Handles ChatKit protocol                                          │   │
-│  │  • Manages session state                                             │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│                              │                                              │
-│              ┌───────────────┼───────────────┐                              │
-│              ▼               ▼               ▼                              │
-│  ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐               │
-│  │  DOMAIN LAYER   │ │   DATA LAYER    │ │ PRESENTATION    │               │
-│  │                 │ │                 │ │     LAYER       │               │
-│  │  policies.py    │ │  repositories/  │ │  composer.py    │               │
-│  │  services.py    │ │  cosmos_client  │ │                 │               │
-│  │                 │ │                 │ │                 │               │
-│  │  • Pure logic   │ │  • Data access  │ │  • Widgets      │               │
-│  │  • No I/O       │ │  • CRUD ops     │ │  • Formatting   │               │
-│  │  • Testable     │ │  • Queries      │ │  • Theming      │               │
-│  └─────────────────┘ └─────────────────┘ └─────────────────┘               │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+### Quick Overview
 
-### Directory Structure for a New Use Case
+The approach is simple: **copy the retail folder and customize it** for your domain.
 
 ```
 use_cases/
-└── your_use_case/
-    ├── __init__.py              # Exports the server class
-    ├── server.py                # Main server (UseCaseServer subclass)
-    ├── session.py               # Session context (SessionContext subclass)
-    │
-    ├── domain/                  # DOMAIN LAYER - Pure business logic
-    │   ├── __init__.py
-    │   ├── policies.py          # PolicyEngine subclasses
-    │   └── services.py          # DomainService subclasses
-    │
-    ├── data/                    # DATA LAYER - Data access
-    │   ├── __init__.py
-    │   ├── repositories.py      # Repository implementations
-    │   └── cosmos_client.py     # Cosmos DB specific code
-    │
-    └── presentation/            # PRESENTATION LAYER - Widgets
-        ├── __init__.py
-        └── composer.py          # WidgetComposer subclass
+└── your_domain/
+    ├── __init__.py         # Exports your server class
+    ├── server.py           # Main ChatKit server (copy from retail)
+    ├── tools.py            # Agent function tools for your domain
+    ├── tool_status.py      # Status messages for workflow indicators
+    ├── widgets.py          # Widget builder functions
+    └── cosmos_client.py    # Data access (optional)
 ```
 
-### Step 1: Create the Directory Structure
+### Key Steps
 
-```bash
-mkdir -p use_cases/your_use_case/{domain,data,presentation}
-touch use_cases/your_use_case/__init__.py
-touch use_cases/your_use_case/{server,session}.py
-touch use_cases/your_use_case/domain/{__init__,policies,services}.py
-touch use_cases/your_use_case/data/{__init__,repositories,cosmos_client}.py
-touch use_cases/your_use_case/presentation/{__init__,composer}.py
-```
+1. **Create the folder**: `use_cases/your_domain/`
 
-### Step 2: Define Domain Policies (Pure Business Logic)
+2. **Define your tools** (`tools.py`):
+   ```python
+   from agents import function_tool, RunContextWrapper
+   
+   @function_tool
+   async def your_tool(context: RunContextWrapper[YourContext], param: str) -> str:
+       # Your business logic
+       return json.dumps({"result": "data"})
+   ```
 
-```python
-# use_cases/your_use_case/domain/policies.py
-from core.domain import PolicyEngine, PolicyDecision, PolicyResult
+3. **Add tool status messages** (`tool_status.py`):
+   ```python
+   from workflow_status import ToolStatusInfo, ToolStatusStage
+   
+   def get_tool_status_map():
+       return {
+           "your_tool": ToolStatusInfo(
+               display_name="Processing Request",
+               icon="🔍",
+               stages={
+                   ToolStatusStage.RUNNING: "Looking up data...",
+                   ToolStatusStage.COMPLETE: "Data retrieved",
+               }
+           ),
+       }
+   ```
 
-class YourEligibilityPolicy(PolicyEngine):
-    """
-    Pure business logic - NO database calls, NO I/O.
-    All data needed for evaluation is passed in context.
-    """
-    
-    def evaluate(self, context: dict) -> PolicyDecision:
-        # Example: check if something is allowed
-        if context.get("days_remaining", 0) <= 0:
-            return PolicyDecision(
-                result=PolicyResult.DENIED,
-                reason="The window has expired",
-            )
-        
-        return PolicyDecision(
-            result=PolicyResult.APPROVED,
-            reason="Eligible for processing",
-            metadata={"days_remaining": context["days_remaining"]},
-        )
-```
+4. **Build widgets** (`widgets.py`):
+   ```python
+   from chatkit.widgets import Card, Button, Text
+   
+   def build_your_widget(data: dict, thread_id: str) -> Card:
+       return Card(id=f"{thread_id}_widget", children=[...])
+   ```
 
-### Step 3: Create Domain Services
+5. **Create the server** (`server.py`) - copy from retail and customize
 
-```python
-# use_cases/your_use_case/domain/services.py
-from core.domain import DomainService
-from dataclasses import dataclass
+6. **Register in `main.py`**:
+   ```python
+   from use_cases.your_domain import YourChatKitServer
+   server = YourChatKitServer(data_store)
+   ```
 
-@dataclass
-class CalculationResult:
-    total: float
-    fees: float
-    net_amount: float
+### Example Domains
 
-class YourCalculator(DomainService):
-    """Pure calculation logic - no database access."""
-    
-    def execute(self, items: list, tier: str = "Standard") -> CalculationResult:
-        total = sum(item.get("price", 0) for item in items)
-        fees = total * 0.10 if tier == "Standard" else 0.0
-        return CalculationResult(
-            total=total,
-            fees=fees,
-            net_amount=total - fees,
-        )
-```
+See [docs/ADDING_USE_CASES.md](docs/ADDING_USE_CASES.md) for examples:
+- **Healthcare**: Appointment scheduling, patient records
+- **Banking**: Transaction disputes, account management  
+- **Travel**: Booking management, cancellations
+- **HR**: Employee onboarding, benefits enrollment
 
-### Step 4: Create Session Context
-
-```python
-# use_cases/your_use_case/session.py
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
-from core.session import SessionContext
-
-@dataclass
-class YourSessionContext(SessionContext):
-    """Use-case-specific session state."""
-    
-    # Your flow-specific fields
-    selected_items: List[Dict[str, Any]] = field(default_factory=list)
-    current_step: str = "not_started"
-    
-    def to_context_string(self) -> str:
-        """Format for agent prompt injection."""
-        parts = [f"Customer: {self.customer_name}"]
-        if self.selected_items:
-            parts.append(f"Selected items: {len(self.selected_items)}")
-        return "\n".join(parts)
-```
-
-### Step 5: Create Widget Composer
-
-```python
-# use_cases/your_use_case/presentation/composer.py
-from typing import Callable, Dict, List, Any
-from chatkit.widgets import Card, Text, Button, Title, Divider
-from chatkit.actions import ActionConfig
-from core.presentation import WidgetComposer
-
-class YourWidgetComposer(WidgetComposer):
-    """Transforms domain data into ChatKit widgets."""
-    
-    def get_widget_builders(self) -> Dict[str, Callable]:
-        return {
-            "items": self.compose_items_list,
-            "confirmation": self.compose_confirmation,
-        }
-    
-    def compose_items_list(self, items: List[Dict], thread_id: str) -> Card:
-        children = [
-            Title(id=self._generate_id("title"), value="Select an Item", size="lg"),
-            Divider(id=self._generate_id("div")),
-        ]
-        
-        for item in items:
-            children.append(
-                Button(
-                    id=self._generate_id("btn"),
-                    label=item["name"],
-                    color="primary",
-                    onClickAction=ActionConfig(
-                        type="select_item",
-                        handler="server",
-                        payload={"item_id": item["id"]},
-                    ),
-                )
-            )
-        
-        return self._wrap_in_card(children)
-```
-
-### Step 6: Create Data Repository
-
-```python
-# use_cases/your_use_case/data/cosmos_client.py
-from typing import Optional, List, Dict, Any
-from azure.cosmos import CosmosClient
-
-class YourCosmosClient:
-    """Data access for your use case."""
-    
-    def __init__(self):
-        # Initialize Cosmos DB connection
-        ...
-    
-    def get_items_for_customer(self, customer_id: str) -> List[Dict[str, Any]]:
-        """Get items - pure data access, no business logic."""
-        query = "SELECT * FROM c WHERE c.customer_id = @id"
-        return list(self._container.query_items(query, parameters=[...]))
-```
-
-### Step 7: Create the Server
-
-```python
-# use_cases/your_use_case/server.py
-from typing import Any, AsyncIterator, Dict
-from chatkit.store import ThreadMetadata
-from chatkit.server import ThreadStreamEvent
-from agents import Agent
-
-from core.orchestration import UseCaseServer
-from core.session import SessionContext
-
-from .session import YourSessionContext
-from .presentation.composer import YourWidgetComposer
-from .domain.policies import YourEligibilityPolicy
-
-SYSTEM_PROMPT = """You are a helpful assistant for..."""
-
-class YourChatKitServer(UseCaseServer):
-    """Server for your use case."""
-    
-    def __init__(self, data_store):
-        super().__init__(data_store, YourSessionContext)
-        self.eligibility_policy = YourEligibilityPolicy()
-    
-    def get_system_prompt(self) -> str:
-        return SYSTEM_PROMPT
-    
-    def get_agent(self) -> Agent:
-        return Agent(
-            name="Your Assistant",
-            instructions=self.get_system_prompt(),
-            tools=self.tool_registry.get_tools(),
-        )
-    
-    def create_widget_composer(self) -> YourWidgetComposer:
-        return YourWidgetComposer()
-    
-    def _register_tools(self):
-        # Register your tools with the registry
-        from .tools import tool_get_items, tool_process_selection
-        self.tool_registry.register("get_items", "...", tool_get_items, "retrieval")
-        self.tool_registry.register("process", "...", tool_process_selection, "action")
-    
-    async def handle_action(
-        self,
-        thread: ThreadMetadata,
-        action_type: str,
-        payload: Dict[str, Any],
-        session: YourSessionContext,
-    ) -> AsyncIterator[ThreadStreamEvent]:
-        """Handle widget button clicks."""
-        if action_type == "select_item":
-            item_id = payload.get("item_id")
-            # Update session, show next widget, etc.
-            ...
-        
-        # Stream widgets as needed
-        async for event in self.stream_widget_to_client(thread, widget):
-            yield event
-```
-
-### Step 8: Register in main.py
-
-```python
-# main.py
-from use_cases.your_use_case import YourChatKitServer
-
-# In lifespan:
-server = YourChatKitServer(data_store)
-```
-
-### Benefits of This Architecture
+### Benefits of This Approach
 
 | Benefit | How It Helps |
 |---------|-------------|
-| **Testability** | Domain layer has no I/O - pure unit tests |
-| **Reusability** | Policies and services can be shared across use cases |
 | **Maintainability** | Clear separation makes code easier to understand |
 | **Extensibility** | Add new use cases by following the same pattern |
 | **Flexibility** | Swap out layers independently (e.g., different database) |

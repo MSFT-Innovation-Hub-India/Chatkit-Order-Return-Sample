@@ -152,7 +152,7 @@ class ToolStatusHooks(RunHooks):
 ```python
 # In your domain's server.py respond() method:
 
-from core.workflow_status import create_tool_status_hooks
+from workflow_status import create_tool_status_hooks
 from use_cases.retail.tool_status import RETAIL_TOOL_STATUS_MESSAGES
 
 # Create hooks with domain-specific messages
@@ -201,8 +201,7 @@ This avoids showing "Working on it..." for every message, only when actual work 
 ## File Structure
 
 ```
-core/
-└── workflow_status.py          # Generic framework (reusable)
+workflow_status.py              # Generic framework (at root, reusable)
 
 use_cases/
 ├── retail/
@@ -252,7 +251,7 @@ YOUR_DOMAIN_TOOL_STATUS_MESSAGES: Dict[str, tuple] = {
 In your domain's `server.py`, add the workflow status hooks:
 
 ```python
-from core.workflow_status import create_tool_status_hooks
+from workflow_status import create_tool_status_hooks
 from use_cases.your_domain.tool_status import YOUR_DOMAIN_TOOL_STATUS_MESSAGES
 
 async def respond(self, thread, agent_context):
