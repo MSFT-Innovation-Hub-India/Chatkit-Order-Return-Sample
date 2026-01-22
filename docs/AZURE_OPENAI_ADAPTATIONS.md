@@ -456,100 +456,259 @@ The **ChatKitServer**, **Widgets**, **Store**, and **Agent/Tools** are all frame
 
 ---
 
-## Features Not Implemented (Future Consideration)
+## Conversation History Loading
 
-### Conversation History Loading
+The official ChatKit starter app includes a pattern for loading conversation history on each request, enabling multi-turn conversations with full context. **This project now implements this feature.**
 
-The official ChatKit starter app includes a pattern for loading conversation history on each request, enabling multi-turn conversations with full context. **This project does not currently implement this feature.**
-
-#### Official Starter Pattern (`chatkit/backend/app/server.py`)
+### Current Implementation (`base_server.py`)
 
 ```python
-MAX_RECENT_ITEMS = 30
+MAX_HISTORY_ITEMS = 100
 
-class StarterChatServer(ChatKitServer[dict[str, Any]]):
-    async def respond(self, thread, item, context):
-        # Load the last 30 messages from the thread
-        items_page = await self.store.load_thread_items(
-            thread.id,
-            after=None,
-            limit=MAX_RECENT_ITEMS,
-            order="desc",
-            context=context,
-        )
-        items = list(reversed(items_page.data))
-        
-        # Convert ALL thread items to agent input (includes history)
-        agent_input = await simple_to_agent_input(items)
-        
-        # Agent now sees full conversation context
-        result = Runner.run_streamed(agent, agent_input, context=agent_context)
+async def respond(self, thread, input, context):
+    # Load full conversation history from the store
+    converter = ThreadItemConverter()
+    
+    # Load all thread items (conversation history)
+    thread_items_page = await self.data_store.load_thread_items(
+        thread.id,
+        after=None,
+        limit=100,  # Get up to 100 messages for context
+        order="asc",  # Oldest first for chronological order
+        context=context,
+    )
+    
+    # Filter to only user and assistant messages (not widgets)
+    relevant_items = [
+        item for item in thread_items_page.data
+        if item.type in ("user_message", "assistant_message")
+    ]
+    
+    # Convert the full conversation history to agent input
+    agent_input = await converter.to_agent_input(relevant_items)
+    
+    # Agent now sees full conversation context
+    result = Runner.run_streamed(agent, agent_input, context=agent_context, ...)
 ```
 
-#### This Project's Current Pattern (`base_server.py`)
-
-```python
-class BaseChatKitServer(ChatKitServer):
-    async def respond(self, thread, input, context):
-        # Only converts the current input (no history loading)
-        converter = ThreadItemConverter()
-        agent_input = await converter.to_agent_input(input)
-        
-        # Agent only sees the current message
-        result = Runner.run_streamed(agent, agent_input, context=agent_context, ...)
-```
-
-#### Comparison
+### Comparison with Official Starter
 
 | Aspect | Official Starter | This Project |
 |--------|-----------------|--------------|
-| **History loading** | Loads last 30 items from store | Does not load history |
-| **Agent context** | Sees full conversation | Sees only current message |
-| **Multi-turn memory** | ✅ Supported (e.g., "Add that task I mentioned") | ❌ Not supported |
-| **Stateless operations** | ✅ Works | ✅ Works |
+| **History loading** | Loads last 30 items from store | ✅ Loads up to 100 items |
+| **Agent context** | Sees full conversation | ✅ Sees full conversation |
+| **Multi-turn memory** | ✅ Supported | ✅ Supported |
+| **Filtering** | All items | User & assistant messages only |
 
-#### Why It Works for the Order Returns App
+---
 
-The current retail use case is **stateless per request**:
-- "I want to return my order" → Tool call is self-contained
-- "Show my orders" → Fetches from database, no conversation context needed
-- "Start return for order 12345" → Tool call is self-contained
+## Session Context for Natural Language Understanding
 
-Each operation is complete on its own without needing prior conversation context.
+This project implements a **session context pattern** that enables the agent to understand natural language references like "the items above" or "return both items".
 
-#### When to Implement History Loading
-
-Consider implementing history loading for future use cases that require:
-
-1. **Reference resolution**: "Add that task I mentioned earlier"
-2. **Follow-up questions**: "What about the second one?"
-3. **Contextual refinement**: "Make it shorter" (referring to previous output)
-4. **Conversation continuity**: "Can you explain more?"
-
-#### Implementation for Future Use Cases
-
-To add conversation history support to `base_server.py`:
+### The Session Context Structure
 
 ```python
-from chatkit.agents import simple_to_agent_input  # Add import
+# Stored on the server instance
+self._session_context = {
+    # Customer identification
+    "customer_id": "CUST-1001",
+    "customer_name": "Jane Smith",
+    "customer_tier": "Gold",
+    
+    # What was shown to user (for NL reference)
+    "displayed_orders": [
+        {
+            "order_id": "ORD-78234",
+            "items": [
+                {"product_id": "PROD-001", "name": "Blue Wireless Widget", ...},
+            ]
+        }
+    ],
+    
+    # User's selections (updated by BOTH widget clicks AND typed input)
+    "selected_items": [...],
+    "reason_code": "DAMAGED",
+    "resolution": "FULL_REFUND",
+    "shipping_method": "SCHEDULE_PICKUP"
+}
+```
 
-MAX_RECENT_ITEMS = 30
+### Context Injection into Agent
 
+Before each agent call, the session context is summarized and prepended to the user's message:
+
+```python
 async def respond(self, thread, input, context):
-    # Load conversation history
-    items_page = await self.data_store.load_thread_items(
-        thread.id,
-        after=None,
-        limit=MAX_RECENT_ITEMS,
-        order="desc",
-        context=context,
+    # Build context summary
+    context_summary = self._build_context_summary()
+    
+    # Prepend to agent input
+    augmented_input = f"""
+[CURRENT SESSION STATE]
+{context_summary}
+
+User message: {original_user_message}
+"""
+```
+
+This allows the agent to understand references like:
+- "return both items" → Agent knows which items were displayed
+- "the order above" → Agent knows which order was shown
+- "I want a full refund" → Agent can match to resolution options
+
+---
+
+## Dual-Input Architecture: Text + Widget Convergence
+
+A key feature of this implementation is supporting **both widget button clicks AND natural language text input**, with both converging into the same processing flow.
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     DUAL-INPUT CONVERGENCE                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   ┌─────────────────┐              ┌─────────────────┐                      │
+│   │  Widget Click   │              │   Text Input    │                      │
+│   │  [Full Refund]  │              │ "I want a full  │                      │
+│   │     button      │              │    refund"      │                      │
+│   └────────┬────────┘              └────────┬────────┘                      │
+│            │                                │                               │
+│            ▼                                ▼                               │
+│   ┌─────────────────┐              ┌─────────────────┐                      │
+│   │   action()      │              │   respond()     │                      │
+│   │ Direct mapping  │              │  Agent + LLM    │                      │
+│   │ from payload    │              │  interprets NL  │                      │
+│   └────────┬────────┘              └────────┬────────┘                      │
+│            │                                │                               │
+│            │                                ▼                               │
+│            │                       ┌─────────────────┐                      │
+│            │                       │ set_user_       │                      │
+│            │                       │ selection tool  │                      │
+│            │                       └────────┬────────┘                      │
+│            │                                │                               │
+│            └────────────┬───────────────────┘                               │
+│                         ▼                                                   │
+│            ┌─────────────────────────┐                                      │
+│            │    SESSION CONTEXT      │  ← Both paths write here!            │
+│            │  resolution: FULL_REFUND│                                      │
+│            └────────────┬────────────┘                                      │
+│                         ▼                                                   │
+│            ┌─────────────────────────┐                                      │
+│            │ finalize_return_from_   │                                      │
+│            │ session() - uses data   │                                      │
+│            │ from session context    │                                      │
+│            └─────────────────────────┘                                      │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Components
+
+| Component | Purpose |
+|-----------|---------|
+| `action()` method | Handles widget button clicks directly (no LLM) |
+| `respond()` method | Routes text input through the Agent/LLM |
+| `set_user_selection` tool | Agent tool to record typed selections |
+| `_session_context` | Shared state that both paths write to |
+| `finalize_return_from_session` | Creates return using session data |
+
+### Path 1: Widget Button Click
+
+```python
+async def action(self, thread, action, sender, context):
+    if action_type == "select_resolution":
+        resolution_code = payload.get("resolution")
+        self._session_context["resolution"] = resolution_code
+        # Show next widget...
+```
+
+### Path 2: Natural Language Input
+
+```python
+# Agent interprets "I want a full refund" and calls:
+@function_tool
+async def tool_set_user_selection(ctx, selection_type, selection_code):
+    session = ctx.context._session_context
+    if selection_type == "resolution":
+        session["resolution"] = selection_code
+        return "Recorded. Now show shipping options."
+```
+
+### Benefits
+
+1. **User choice**: Users can click buttons OR type naturally
+2. **Consistent state**: Both paths update the same session context
+3. **No duplication**: `finalize_return_from_session` works for both paths
+4. **Widget avoidance**: When user types selection, widget is not shown again
+
+---
+
+## Additional Tools for Dual-Input Support
+
+### `set_user_selection` Tool
+
+Records a user's typed selection (reason, resolution, or shipping):
+
+```python
+@function_tool(description="Record user's typed selection")
+async def tool_set_user_selection(
+    ctx: RunContextWrapper,
+    selection_type: str,     # "reason", "resolution", or "shipping"
+    selection_code: str,     # "FULL_REFUND", "DAMAGED", etc.
+) -> str:
+    session = ctx.context._session_context
+    
+    if selection_type == "resolution":
+        session["resolution"] = selection_code
+        return "Recorded resolution. Now call get_shipping_options."
+    # ... similar for reason and shipping
+```
+
+### `finalize_return_from_session` Tool
+
+Creates the return using all data collected in session:
+
+```python
+@function_tool(description="Create return from session data")
+async def tool_finalize_return_from_session(ctx) -> str:
+    session = ctx.context._session_context
+    
+    # All data comes from session - works for both input paths!
+    result = create_return_request(
+        customer_id=session.get("customer_id"),
+        order_id=session["selected_items"][0]["order_id"],
+        items=session["selected_items"],
+        reason_code=session.get("reason_code"),
+        resolution=session.get("resolution"),
+        shipping_method=session.get("shipping_method"),
     )
-    items = list(reversed(items_page.data))
-    
-    # Convert with history (instead of just current input)
-    agent_input = await simple_to_agent_input(items)
-    
-    # Rest of the method remains the same...
+    return f"Return {result['id']} created!"
+```
+
+---
+
+## System Prompt Guidance for Dual-Input
+
+The system prompt includes specific instructions for handling typed input:
+
+```
+HANDLING USER TYPED SELECTIONS (CRITICAL):
+When the user TYPES their selection instead of clicking a button:
+
+1. For RESOLUTION OPTIONS - If user types "full refund", "exchange", etc.:
+   - Match their input to: FULL_REFUND, EXCHANGE, STORE_CREDIT, KEEP_WITH_DISCOUNT
+   - Use set_user_selection tool with selection_type="resolution"
+   - Then call get_shipping_options
+   - DO NOT call get_resolution_options again!
+
+CRITICAL - DO NOT LIST OPTIONS IN TEXT:
+When you call get_return_reasons, get_resolution_options, or get_shipping_options:
+- A widget will automatically appear showing the options
+- DO NOT list the options as bullet points in your text response!
+- Just ask a simple question like "How would you like to be compensated?"
 ```
 
 ---
@@ -575,14 +734,18 @@ async def respond(self, thread, input, context):
 | `chatkit/frontend/src/components/ChatKitPanel.tsx` | React ChatKit usage |
 | `managed-chatkit/` | Alternative using hosted workflows |
 
-### This Project's Azure-Specific Files
+### This Project's Key Files
 
 | File | Purpose |
 |------|---------|
 | `azure_client.py` | Azure AD authentication, `AsyncAzureOpenAI` client |
-| `base_server.py` | Azure model wrapping, `RunConfig` override |
+| `base_server.py` | Azure model wrapping, conversation history, `RunConfig` override |
 | `config.py` | Azure OpenAI endpoint, deployment, API version settings |
+| `use_cases/retail/server.py` | Retail ChatKit server with dual-input handling, session context |
+| `use_cases/retail/tools.py` | Business logic tools for returns processing |
+| `use_cases/retail/cosmos_client.py` | Cosmos DB client for data persistence |
 
 ---
 
 *Document created: January 18, 2026*
+*Last updated: January 22, 2026*

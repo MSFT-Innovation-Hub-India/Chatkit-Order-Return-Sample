@@ -2,8 +2,6 @@
 
 A self-hosted ChatKit order returns management application powered by Azure OpenAI, featuring interactive widgets and a modular architecture designed for retail customer service.
 
-![Architecture Diagram](docs/architecture.png)
-
 ## 🎯 Features
 
 - **Official ChatKit React UI**: Uses OpenAI's `@openai/chatkit-react` components
