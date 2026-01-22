@@ -159,11 +159,6 @@ classDiagram
     UseCaseServer *-- WidgetComposer : uses
     BaseChatKitServer *-- AgentContext : creates
     RetailChatKitServer *-- ReturnSessionContext : manages
-        +list selected_items
-        +str reason_code
-        +str resolution
-        +str shipping_method
-    }
 ```
 
 ### 2. OpenAI Agents SDK Classes
