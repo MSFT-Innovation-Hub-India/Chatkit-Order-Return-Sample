@@ -135,10 +135,19 @@ CRITICAL - ONE STEP AT A TIME:
 - Wait for user input between each step
 - The widgets will guide the user through the flow - don't jump ahead
 
-CRITICAL - DON'T REPEAT WIDGETS:
+CRITICAL - DON'T REPEAT WIDGETS OR ASK FOR DATA YOU ALREADY HAVE:
+- ALWAYS check [CURRENT SESSION STATE] before asking for information
+- If "Return reason selected:" appears in session state, DO NOT call get_return_reasons again
+- If "Resolution selected:" appears in session state, DO NOT call get_resolution_options again  
+- If "Shipping method:" appears in session state, DO NOT call get_shipping_options again
+- If "Items the customer has selected for return:" or "Selected for return:" appears, DO NOT ask them to select items again
 - If the user types their selection (e.g., "I want a full refund"), use set_user_selection to record it
 - Then proceed to the NEXT step - don't show the same widget again!
-- Check the session state - if a selection is already recorded, move forward
+
+WHEN USER TYPES INSTEAD OF CLICKING:
+- If they typed the shipping option and all other selections exist in session, call finalize_return_from_session directly
+- Match their text to: PREPAID_LABEL, DROP_OFF, SCHEDULE_PICKUP, or RETURN_TO_STORE
+- Call set_user_selection(shipping, MATCHED_CODE), then immediately call finalize_return_from_session
 
 Example:
 - User says "return the first item" -> ONLY call get_return_reasons, then STOP and wait
@@ -935,21 +944,26 @@ class RetailChatKitServer(BaseChatKitServer):
                 for item in order.get("items", []):
                     parts.append(f"    - {item.get('name', 'Unknown')} (Product: {item.get('product_id')}, ${item.get('unit_price', 0):.2f}, Qty: {item.get('quantity', 1)})")
         
-        # Currently selected items for return
+        # Currently selected items for return - CHECK BOTH formats
         if session.get("selected_items"):
-            parts.append("\nItems the customer has selected for return:")
+            parts.append("\n✅ ITEM ALREADY SELECTED - DO NOT ASK AGAIN:")
             for item in session.get("selected_items", []):
                 parts.append(f"  - {item.get('name', 'Unknown')} from order {item.get('order_id')}")
         elif session.get("selected_order_id") and session.get("selected_item_name"):
-            parts.append(f"\nSelected for return: {session.get('selected_item_name')} from order {session.get('selected_order_id')}")
+            parts.append(f"\n✅ ITEM ALREADY SELECTED - DO NOT ASK AGAIN: {session.get('selected_item_name')} from order {session.get('selected_order_id')}")
         
-        # Return flow progress
+        # Return flow progress - explicit about what's done
+        progress = []
         if session.get("reason_code"):
-            parts.append(f"\nReturn reason selected: {session.get('reason_code')}")
+            progress.append(f"✅ Return reason: {session.get('reason_code')} (ALREADY SELECTED - DO NOT ASK AGAIN)")
         if session.get("resolution"):
-            parts.append(f"Resolution selected: {session.get('resolution')}")
+            progress.append(f"✅ Resolution: {session.get('resolution')} (ALREADY SELECTED - DO NOT ASK AGAIN)")
         if session.get("shipping_method"):
-            parts.append(f"Shipping method: {session.get('shipping_method')}")
+            progress.append(f"✅ Shipping method: {session.get('shipping_method')} (ALREADY SELECTED - DO NOT ASK AGAIN)")
+        
+        if progress:
+            parts.append("\nRETURN FLOW PROGRESS:")
+            parts.extend(progress)
         
         return "\n".join(parts) if parts else ""
 
@@ -1100,6 +1114,15 @@ class RetailChatKitServer(BaseChatKitServer):
             self._session_context["selected_item_name"] = payload.get("name")
             self._session_context["unit_price"] = payload.get("unit_price", 0)
             self._session_context["quantity"] = payload.get("quantity", 1)
+            # Also store in selected_items list for finalize_return_from_session
+            self._session_context["selected_items"] = [{
+                "customer_id": payload.get("customer_id", ""),
+                "order_id": payload.get("order_id"),
+                "product_id": payload.get("product_id"),
+                "name": payload.get("name"),
+                "unit_price": payload.get("unit_price", 0),
+                "quantity": payload.get("quantity", 1),
+            }]
         
         elif action_type == "select_reason":
             self._session_context["reason_code"] = payload.get("reason_code")

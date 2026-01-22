@@ -71,10 +71,10 @@ function App() {
       greeting: branding?.tagline || 'Your AI-powered returns management assistant',
       prompts: branding?.prompts || defaultPrompts,
     },
-    // Header configuration
+    // Header configuration - minimal since we have our own custom header
     header: {
       title: {
-        text: branding?.name || 'Order Returns',
+        text: '',
       },
     },
     // Composer configuration

@@ -19,6 +19,11 @@ export default defineConfig({
         target: `http://localhost:${BACKEND_PORT}`,
         changeOrigin: true,
       },
+      // Proxy static files (logo, branding assets)
+      '/static': {
+        target: `http://localhost:${BACKEND_PORT}`,
+        changeOrigin: true,
+      },
     },
   },
   build: {
