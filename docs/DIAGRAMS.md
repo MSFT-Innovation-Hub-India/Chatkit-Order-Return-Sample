@@ -1,19 +1,371 @@
-# ChatKit Order Returns - Sequence Diagrams
+# ChatKit Order Returns - Architecture Diagrams
 
-This document contains Mermaid sequence diagrams showing the end-to-end flow of the application.
+This document contains Mermaid diagrams showing the class hierarchy, component relationships, and end-to-end flow of the application.
 
 ## Color Legend
 
 | Color | Component Type | Examples |
 |-------|---------------|----------|
-| 🟦 **Blue** | ChatKit Framework | `@openai/chatkit-react`, `ChatKitServer`, `stream_agent_response` |
+| 🟦 **Blue** | ChatKit Framework | `ChatKitServer`, `Store`, `chatkit.widgets`, `@openai/chatkit-react` |
 | 🟩 **Green** | Custom Extensions | `RetailChatKitServer`, `BaseChatKitServer`, retail tools & widgets |
 | 🟧 **Orange** | External Services | Azure OpenAI, Azure Cosmos DB |
 | 🟪 **Purple** | OpenAI Agents SDK | `Agent`, `Runner`, `function_tool` |
 
 ---
 
-## 1. Complete Flow: User Message to Response
+## Class Diagrams
+
+### 1. Server Class Hierarchy
+
+This diagram shows the inheritance and composition relationships between server classes.
+
+```mermaid
+classDiagram
+    direction TB
+    
+    %% ChatKit Framework Classes (Blue)
+    class ChatKitServer {
+        <<🟦 Framework>>
+        +Store store
+        +respond(thread, input, context)*
+        +action(thread, action, sender, context)*
+        +load_thread(id, context)
+        +create_thread(context)
+    }
+    
+    class Store {
+        <<🟦 Framework>>
+        +load_thread_items(thread_id, ...)*
+        +save_thread_item(thread_id, item)*
+        +load_thread(id, context)*
+        +create_thread(context)*
+    }
+    
+    class AgentContext {
+        <<🟦 Framework>>
+        +ThreadMetadata thread
+        +Store store
+        +Any request_context
+    }
+    
+    %% Custom Base Server (Green)
+    class BaseChatKitServer {
+        <<🟩 Custom Extension>>
+        +Store data_store
+        +get_agent()* Agent
+        +respond(thread, input, context)
+        +action(thread, action, sender, context)*
+        +post_respond_hook(thread, agent_context)
+        +stream_widget_to_client(thread, widget)
+    }
+    
+    %% Custom Retail Server (Green)
+    class RetailChatKitServer {
+        <<🟩 Custom Extension>>
+        -dict _session_context
+        +get_agent() Agent
+        +respond(thread, input, context)
+        +action(thread, action, sender, context)
+        +post_respond_hook(thread, agent_context)
+        -_build_context_summary() str
+        -_update_session_from_action(action, payload)
+    }
+    
+    %% Custom Store Implementation (Green)
+    class CosmosDBStore {
+        <<🟩 Custom Extension>>
+        +CosmosClient client
+        +load_thread_items(thread_id, ...)
+        +save_thread_item(thread_id, item)
+        +load_thread(id, context)
+        +create_thread(context)
+    }
+    
+    %% Inheritance
+    ChatKitServer <|-- BaseChatKitServer : extends
+    BaseChatKitServer <|-- RetailChatKitServer : extends
+    Store <|-- CosmosDBStore : implements
+    
+    %% Composition
+    ChatKitServer *-- Store : uses
+    BaseChatKitServer *-- AgentContext : creates
+    RetailChatKitServer *-- "1" SessionContext : manages
+
+    class SessionContext {
+        <<🟩 Custom>>
+        +str customer_id
+        +str customer_name
+        +list displayed_orders
+        +list selected_items
+        +str reason_code
+        +str resolution
+        +str shipping_method
+    }
+```
+
+### 2. OpenAI Agents SDK Classes
+
+This diagram shows the Agent SDK components and how we extend them.
+
+```mermaid
+classDiagram
+    direction TB
+    
+    %% Agents SDK Classes (Purple)
+    class Agent {
+        <<🟪 Agents SDK>>
+        +str name
+        +str instructions
+        +list~Tool~ tools
+        +Model model
+    }
+    
+    class Runner {
+        <<🟪 Agents SDK>>
+        +run_streamed(agent, input, context, run_config)$ StreamedRunResult
+        +run(agent, input, context, run_config)$ RunResult
+    }
+    
+    class RunConfig {
+        <<🟪 Agents SDK>>
+        +Model model
+        +int max_turns
+    }
+    
+    class Model {
+        <<🟪 Agents SDK>>
+        +complete(messages)*
+    }
+    
+    class OpenAIResponsesModel {
+        <<🟪 Agents SDK>>
+        +str model
+        +AsyncOpenAI openai_client
+        +complete(messages)
+    }
+    
+    class function_tool {
+        <<🟪 Agents SDK>>
+        +str description_override
+        +__call__(func) Tool
+    }
+    
+    %% Tool Functions (Green) - @function_tool decorated in server.py
+    class server_py_agent_tools {
+        <<🟩 Tool Functions>>
+        +tool_lookup_customer(search_term)
+        +tool_get_returnable_items(customer_id)
+        +tool_get_return_reasons()
+        +tool_get_resolution_options()
+        +tool_get_shipping_options()
+        +tool_set_user_selection(type, code)
+        +tool_finalize_return_from_session()
+        +tool_create_return_request(...)
+    }
+    
+    %% Azure Client (Green/Orange)
+    class AzureOpenAIClientManager {
+        <<🟩 Custom>>
+        -AsyncAzureOpenAI _client
+        -DefaultAzureCredential _credential
+        +get_client() AsyncAzureOpenAI
+    }
+    
+    class AsyncAzureOpenAI {
+        <<🟧 Azure SDK>>
+        +str azure_endpoint
+        +str api_version
+        +chat.completions.create(...)
+    }
+    
+    %% Relationships
+    Model <|-- OpenAIResponsesModel : implements
+    Agent *-- "many" function_tool : has tools
+    Runner ..> Agent : executes
+    Runner ..> RunConfig : configured by
+    RunConfig *-- Model : specifies
+    OpenAIResponsesModel *-- AsyncAzureOpenAI : wraps
+    AzureOpenAIClientManager *-- AsyncAzureOpenAI : manages
+    
+    function_tool ..> server_py_agent_tools : decorates
+```
+
+### 3. Widget Classes
+
+This diagram shows the widget hierarchy used for building UI components.
+
+```mermaid
+classDiagram
+    direction TB
+    
+    %% ChatKit Widget Base (Blue)
+    class Widget {
+        <<🟦 Framework>>
+        +str id
+        +str type
+        +to_dict() dict
+    }
+    
+    %% Container Widgets (Blue)
+    class Card {
+        <<🟦 Framework>>
+        +str id
+        +list~Widget~ children
+    }
+    
+    class Row {
+        <<🟦 Framework>>
+        +str id
+        +list~Widget~ children
+    }
+    
+    class Box {
+        <<🟦 Framework>>
+        +str id
+        +list~Widget~ children
+    }
+    
+    %% Content Widgets (Blue)
+    class Text {
+        <<🟦 Framework>>
+        +str id
+        +str value
+    }
+    
+    class Title {
+        <<🟦 Framework>>
+        +str id
+        +str value
+        +str size
+    }
+    
+    class Badge {
+        <<🟦 Framework>>
+        +str id
+        +str label
+        +str color
+    }
+    
+    class Button {
+        <<🟦 Framework>>
+        +str id
+        +str label
+        +str color
+        +ActionConfig onClickAction
+    }
+    
+    class Divider {
+        <<🟦 Framework>>
+        +str id
+    }
+    
+    class Spacer {
+        <<🟦 Framework>>
+        +str id
+    }
+    
+    %% Action Config (Blue)
+    class ActionConfig {
+        <<🟦 Framework>>
+        +str type
+        +str handler
+        +dict payload
+    }
+    
+    %% Custom Widget Builders (Green) - Module functions in server.py
+    class server_py_widgets {
+        <<🟩 Module Functions>>
+        +build_customer_widget(customer) Card
+        +build_returnable_items_widget(orders, thread_id) Card
+        +build_reasons_widget(reasons, thread_id) Card
+        +build_resolution_widget(options, thread_id) Card
+        +build_shipping_widget(options, thread_id) Card
+        +build_confirmation_widget(result, thread_id) Card
+    }
+    
+    %% Inheritance
+    Widget <|-- Card
+    Widget <|-- Row
+    Widget <|-- Box
+    Widget <|-- Text
+    Widget <|-- Title
+    Widget <|-- Badge
+    Widget <|-- Button
+    Widget <|-- Divider
+    Widget <|-- Spacer
+    
+    %% Composition
+    Card *-- "many" Widget : contains
+    Row *-- "many" Widget : contains
+    Box *-- "many" Widget : contains
+    Button *-- ActionConfig : has
+    
+    server_py_widgets ..> Card : creates
+    server_py_widgets ..> Button : creates
+    server_py_widgets ..> ActionConfig : creates
+```
+
+### 4. Data Layer Classes
+
+```mermaid
+classDiagram
+    direction TB
+    
+    %% Cosmos DB Client (Green)
+    class RetailCosmosClient {
+        <<🟩 Custom>>
+        -CosmosClient _client
+        -str database_name
+        +get_customer(customer_id) dict
+        +search_customers(search_term) list
+        +get_orders_for_customer(customer_id) list
+        +get_returnable_orders(customer_id) list
+        +get_product_by_id(product_id) dict
+        +create_return(return_data) dict
+        +get_return_reasons() list
+        +get_resolution_options() list
+    }
+    
+    %% Azure Cosmos SDK (Orange)
+    class CosmosClient {
+        <<🟧 Azure SDK>>
+        +get_database_client(name)
+    }
+    
+    class DatabaseProxy {
+        <<🟧 Azure SDK>>
+        +get_container_client(name)
+    }
+    
+    class ContainerProxy {
+        <<🟧 Azure SDK>>
+        +query_items(query, params)
+        +read_item(id, partition_key)
+        +upsert_item(item)
+    }
+    
+    %% Agent Tool Functions (Green) - @function_tool decorated in server.py
+    class server_py_tools {
+        <<🟩 Tool Functions>>
+        +tool_lookup_customer(search_term) dict
+        +tool_get_customer_orders(customer_id) dict
+        +tool_get_returnable_items(customer_id) dict
+        +tool_check_return_eligibility(order_id, product_id) dict
+        +tool_create_return_request(...) dict
+    }
+    
+    %% Relationships
+    RetailCosmosClient *-- CosmosClient : uses
+    CosmosClient --> DatabaseProxy : creates
+    DatabaseProxy --> ContainerProxy : creates
+    server_py_tools --> RetailCosmosClient : uses
+```
+
+---
+
+## Sequence Diagrams
+
+### 5. Complete Flow: User Message to Response
 
 This diagram shows the full flow when a user sends a message (e.g., "I'm jane.smith@email.com, help me with returns").
 
@@ -74,7 +426,7 @@ sequenceDiagram
 
 ---
 
-## 2. Dual-Input Flow: Widget Click vs Text Input
+### 6. Dual-Input Flow: Widget Click vs Text Input
 
 This diagram shows how both widget button clicks and typed text converge into the same session context.
 
@@ -124,7 +476,7 @@ sequenceDiagram
 
 ---
 
-## 3. Widget Rendering Flow
+### 7. Widget Rendering Flow
 
 This diagram shows how widgets are defined in Python and rendered in React.
 
@@ -159,7 +511,7 @@ sequenceDiagram
 
 ---
 
-## 4. Return Creation Flow (Finalize from Session)
+### 8. Return Creation Flow (Finalize from Session)
 
 This diagram shows the complete return creation using session data.
 
@@ -205,7 +557,7 @@ sequenceDiagram
 
 ---
 
-## 5. Component Architecture Overview
+### 9. Component Architecture Overview (Flowchart)
 
 ```mermaid
 flowchart TB

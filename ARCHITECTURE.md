@@ -2,6 +2,8 @@
 
 This document explains the modular architecture of this ChatKit sample project, the role of the ChatKit server, and provides a guide for implementing use cases.
 
+> 📊 **Visual Diagrams**: For class diagrams and sequence diagrams, see [docs/DIAGRAMS.md](docs/DIAGRAMS.md)
+
 ## Table of Contents
 
 1. [What is ChatKit?](#what-is-chatkit)
