@@ -6,6 +6,7 @@ It handles:
 - Azure OpenAI client integration
 - Agent-based response streaming
 - Widget event streaming
+- Tool execution status streaming (ChatGPT-style progress indicators)
 - Common server lifecycle
 
 To create a new use case, extend BaseChatKitServer and:
@@ -30,6 +31,7 @@ from agents.models.openai_responses import OpenAIResponsesModel
 
 from azure_client import client_manager
 from config import settings
+from core.workflow_status import create_tool_status_hooks
 
 logger = logging.getLogger(__name__)
 
@@ -194,11 +196,16 @@ class BaseChatKitServer(ChatKitServer):
         # Get the agent for this use case
         agent = self.get_agent()
         
-        # Run the agent with streaming
+        # Create tool status hooks for ChatGPT-style progress indicators
+        # This shows real-time status like "Looking up customer..." during tool execution
+        hooks, tracker = create_tool_status_hooks(agent_context)
+        
+        # Run the agent with streaming and tool status hooks
         result = Runner.run_streamed(
             agent,
             agent_input,
             context=agent_context,
+            hooks=hooks,
             run_config=RunConfig(model=azure_model),
         )
         
@@ -222,6 +229,9 @@ class BaseChatKitServer(ChatKitServer):
             else:
                 logger.info(f"Streaming event: {event_type}")
             yield event
+        
+        # End the workflow status indicator if it was started
+        tracker.end_workflow_if_started()
         
         # Call the post-respond hook for additional events (e.g., widgets)
         async for event in self.post_respond_hook(thread, agent_context):

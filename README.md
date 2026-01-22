@@ -61,6 +61,25 @@ When a user types instead of clicking (e.g., "I want a full refund"):
 
 > 💡 **Performance Note**: Widget clicks are faster since they skip the LLM inference step, but both paths result in identical outcomes.
 
+### Real-Time Tool Execution Status
+
+Like ChatGPT, this application shows **live status indicators** when the agent executes tools:
+
+```
+🔍 Looking up customer...
+📦 Fetching your orders...
+✅ Customer found
+✅ Orders retrieved
+```
+
+This provides transparency into what the agent is doing, especially when:
+- Looking up customer information
+- Fetching order history and returnable items
+- Checking return eligibility
+- Creating return requests
+
+The status indicators use ChatKit's **Workflow API** and appear as collapsible progress sections.
+
 ### Extensible Tool Architecture
 
 The function tools can be extended beyond local implementations:
@@ -85,6 +104,7 @@ Every action in the workflow involves **Azure Cosmos DB** operations:
 - **Azure OpenAI**: Powered by Azure OpenAI with GPT-4o model
 - **Azure Cosmos DB**: Persistent storage for orders, customers, and returns
 - **Interactive Widgets**: Rich UI with buttons, forms, order details, and status badges
+- **Tool Execution Status**: ChatGPT-style progress indicators showing real-time tool activity
 - **Customizable Branding**: Easy logo, colors, and styling customization
 - **Self-Hosted**: Full control over your data and infrastructure
 - **Azure Container Apps**: Cloud-native deployment with auto-scaling

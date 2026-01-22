@@ -629,11 +629,12 @@ def create_retail_agent() -> Agent:
 def build_customer_widget(customer: dict) -> Card:
     """Build a customer profile card widget."""
     tier = customer.get("tier", "Standard")
+    # Valid Badge colors: 'secondary', 'success', 'danger', 'warning', 'info', 'discovery'
     tier_colors = {
         "Standard": "secondary",
         "Silver": "info",
         "Gold": "warning",
-        "Platinum": "primary",
+        "Platinum": "discovery",  # Special tier uses discovery (purple)
     }
     
     return Card(
@@ -1022,17 +1023,33 @@ class RetailChatKitServer(BaseChatKitServer):
         # Get the agent
         agent = self.get_agent()
         
-        # Run the agent with streaming
+        # Create workflow status hooks for ChatGPT-style progress indicators
+        from core.workflow_status import create_tool_status_hooks
+        from use_cases.retail.tool_status import RETAIL_TOOL_STATUS_MESSAGES
+        
+        hooks, tracker = create_tool_status_hooks(
+            agent_context,
+            tool_messages=RETAIL_TOOL_STATUS_MESSAGES,
+        )
+        
+        # Note: Workflow starts automatically when first tool is called
+        # This avoids showing "Working on it..." for simple responses with no tools
+        
+        # Run the agent with streaming and status hooks
         result = Runner.run_streamed(
             agent,
             agent_input,
             context=agent_context,
+            hooks=hooks,
             run_config=RunConfig(model=azure_model),
         )
         
         # Stream the agent response
         async for event in stream_agent_response(agent_context, result):
             yield event
+        
+        # End the workflow if it was started
+        await tracker.end_workflow_if_started()
         
         # SYNC SESSION CONTEXT BACK: Update server's session from agent context
         if hasattr(agent_context, '_session_context'):
