@@ -425,13 +425,56 @@ AI: *Updates widget, shows ✓ Approved on Sarah's expense*
 
 ## Next Steps
 
-1. Choose a use case to implement
-2. Define the data model and mock data
-3. Create widget builders in `use_cases/{use_case}/widgets.py`
-4. Define agent tools in `use_cases/{use_case}/agent.py`
-5. Implement action handlers in `use_cases/{use_case}/actions.py`
-6. Test the full flow
+### Using the Layered Architecture
+
+This project now includes an extensible **layered architecture** in the `core/` module. To implement any of these use cases:
+
+1. **Create the use case structure:**
+   ```
+   use_cases/{use_case}/
+   ├── __init__.py
+   ├── server.py           # Extend UseCaseServer
+   ├── session.py          # Extend SessionContext
+   ├── domain/
+   │   ├── policies.py     # Extend PolicyEngine (pure business rules)
+   │   └── services.py     # Extend DomainService
+   └── presentation/
+       └── composer.py     # Extend WidgetComposer
+   ```
+
+2. **Follow the layer responsibilities:**
+
+   | Layer | Responsibility | Example |
+   |-------|----------------|---------|
+   | **Domain** | Pure business rules (no I/O) | Policy violations, approval thresholds |
+   | **Data** | Repository for data access | Query expenses, save approvals |
+   | **Presentation** | Widget composition | Expense card, approval buttons |
+   | **Orchestration** | Wire everything together | Handle approve/reject actions |
+
+3. **Reference implementations available:**
+   - **Retail Returns**: Full production implementation in `use_cases/retail/`
+   - **Healthcare Scheduling**: Skeleton demonstrating the pattern in `use_cases/healthcare/`
+
+### Implementation Order
+
+For new use cases:
+
+1. **Domain Layer** - Define policies and business rules first (pure Python, easily tested)
+2. **Data Layer** - Create repository/client for data access
+3. **Presentation Layer** - Build WidgetComposer with themed widgets
+4. **Session** - Define flow steps and state tracking
+5. **Server** - Extend UseCaseServer and wire everything together
+
+### Key Benefits of the Architecture
+
+- **Testability**: Domain layer has no I/O - pure unit tests
+- **Reusability**: Policies can be shared across use cases
+- **Consistency**: All use cases follow the same pattern
+- **Extensibility**: Add new domains without modifying existing code
+
+See [ARCHITECTURE.md](../ARCHITECTURE.md) for detailed documentation on the layered architecture.
 
 ---
 
 *Document created: January 18, 2026*
+*Updated: January 22, 2026 - Added layered architecture implementation guide*

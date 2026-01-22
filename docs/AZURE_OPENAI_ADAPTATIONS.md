@@ -741,11 +741,23 @@ When you call get_return_reasons, get_resolution_options, or get_shipping_option
 | `azure_client.py` | Azure AD authentication, `AsyncAzureOpenAI` client |
 | `base_server.py` | Azure model wrapping, conversation history, `RunConfig` override |
 | `config.py` | Azure OpenAI endpoint, deployment, API version settings |
-| `use_cases/retail/server.py` | Retail ChatKit server with dual-input handling, session context |
+| **Core Framework (Extensibility)** | |
+| `core/domain.py` | PolicyEngine, DomainService base classes (pure logic) |
+| `core/data.py` | Repository pattern for data access |
+| `core/presentation.py` | WidgetComposer, WidgetTheme base classes |
+| `core/orchestration.py` | UseCaseServer base class extending ChatKitServer |
+| `core/session.py` | SessionContext, SessionManager for state tracking |
+| **Retail Use Case** | |
+| `use_cases/retail/server.py` | Retail ChatKit server with dual-input handling |
+| `use_cases/retail/domain/policies.py` | ReturnEligibilityPolicy, RefundPolicy |
+| `use_cases/retail/presentation/composer.py` | ReturnWidgetComposer |
 | `use_cases/retail/tools.py` | Business logic tools for returns processing |
 | `use_cases/retail/cosmos_client.py` | Cosmos DB client for data persistence |
+| **Healthcare Use Case (Example)** | |
+| `use_cases/healthcare/server.py` | Example server demonstrating extensibility |
+| `use_cases/healthcare/domain/policies.py` | SchedulingRules, CancellationPolicy |
 
 ---
 
 *Document created: January 18, 2026*
-*Last updated: January 22, 2026*
+*Last updated: January 22, 2026 - Added layered architecture components*

@@ -6,6 +6,7 @@ A self-hosted ChatKit order returns management application powered by Azure Open
 
 - **Official ChatKit React UI**: Uses OpenAI's `@openai/chatkit-react` components
 - **ChatKit Protocol**: Backend uses `openai-chatkit` Python library
+- **OpenAI Agents SDK**: Built with `openai-agents` for tool orchestration and agent workflows
 - **Azure OpenAI**: Powered by Azure OpenAI with GPT-4o model
 - **Azure Cosmos DB**: Persistent storage for orders, customers, and returns
 - **Interactive Widgets**: Rich UI with buttons, forms, order details, and status badges
@@ -109,15 +110,37 @@ chatkit-order-returns/
 │   │   └── main.tsx         # React entry point
 │   └── vite.config.ts       # Vite build configuration
 │
+├── core/                    # Extensible framework base classes
+│   ├── domain.py            # PolicyEngine, DomainService, Validator
+│   ├── data.py              # Repository pattern for data access
+│   ├── presentation.py      # WidgetComposer, WidgetTheme
+│   ├── session.py           # SessionContext, SessionManager
+│   ├── orchestration.py     # UseCaseServer base class
+│   └── template.py          # Documentation for creating new use cases
+│
 ├── use_cases/
-│   └── retail/              # Retail order returns use case
-│       ├── __init__.py      # Exports RetailChatKitServer
-│       ├── server.py        # ChatKit server for retail returns
-│       ├── agent.py         # Agent with retail tools
-│       ├── widgets.py       # Widget builders for order/return UI
-│       ├── tools.py         # Tools for order lookup, returns, etc.
-│       ├── cosmos_client.py # Cosmos DB client for retail data
-│       └── cosmos_store.py  # ChatKit thread storage in Cosmos DB
+│   ├── retail/              # Retail order returns use case
+│   │   ├── __init__.py      # Exports RetailChatKitServer
+│   │   ├── server.py        # ChatKit server for retail returns
+│   │   ├── session.py       # ReturnSessionContext
+│   │   ├── tools.py         # Tools for order lookup, returns, etc.
+│   │   ├── cosmos_client.py # Cosmos DB client for retail data
+│   │   ├── cosmos_store.py  # ChatKit thread storage in Cosmos DB
+│   │   ├── domain/          # Pure business logic (no I/O)
+│   │   │   ├── policies.py  # ReturnEligibilityPolicy, RefundPolicy
+│   │   │   └── services.py  # RefundCalculator, ReturnRequestBuilder
+│   │   └── presentation/    # Widget composition
+│   │       └── composer.py  # ReturnWidgetComposer
+│   │
+│   └── healthcare/          # Healthcare appointment scheduling (example)
+│       ├── __init__.py      # Exports HealthcareChatKitServer
+│       ├── server.py        # ChatKit server extending UseCaseServer
+│       ├── session.py       # AppointmentSessionContext
+│       ├── domain/          # Pure business logic
+│       │   ├── policies.py  # SchedulingRules, CancellationPolicy
+│       │   └── services.py  # ScheduleCalculator, ConflictChecker
+│       └── presentation/    # Widget composition
+│           └── composer.py  # AppointmentWidgetComposer
 │
 ├── static/
 │   ├── index.html           # Vanilla JS frontend (fallback)
@@ -636,19 +659,57 @@ az role assignment create \
 
 ## 🧩 Extending with New Use Cases
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed documentation on:
-- The modular use case pattern
-- How to create new agents with custom tools
-- Building interactive widgets
-- Handling widget actions
+This project uses a **layered architecture** that separates concerns and enables easy extension. See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed documentation.
 
-### Quick Guide
+### Layered Architecture
 
-1. Create a new folder: `use_cases/my_use_case/`
-2. Define your agent with tools in `agent.py`
-3. Build widgets in `widgets.py`
-4. Handle actions in `actions.py`
-5. Extend `BaseChatKitServer` for your server
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  ORCHESTRATION LAYER - UseCaseServer (extends ChatKitServer)               │
+│    • Wires all layers together                                              │
+│    • Handles ChatKit protocol (respond, action, widgets)                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+                          │
+          ┌───────────────┼───────────────┐
+          ▼               ▼               ▼
+┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
+│  DOMAIN LAYER   │ │  DATA LAYER     │ │  PRESENTATION   │
+│  PolicyEngine   │ │  Repository     │ │  WidgetComposer │
+│  DomainService  │ │  CosmosClient   │ │  WidgetTheme    │
+│                 │ │                 │ │                 │
+│  Pure logic     │ │  Data access    │ │  Widget build   │
+│  No I/O         │ │  CRUD ops       │ │  Formatting     │
+└─────────────────┘ └─────────────────┘ └─────────────────┘
+```
+
+### Quick Guide to Create a New Use Case
+
+1. **Create the folder structure:**
+   ```
+   use_cases/my_use_case/
+   ├── __init__.py
+   ├── server.py           # Extend UseCaseServer
+   ├── session.py          # Extend SessionContext
+   ├── domain/
+   │   ├── policies.py     # Extend PolicyEngine
+   │   └── services.py     # Extend DomainService
+   └── presentation/
+       └── composer.py     # Extend WidgetComposer
+   ```
+
+2. **Implement each layer:**
+   - **Domain Layer**: Pure business rules (no I/O, easily unit tested)
+   - **Data Layer**: Repository pattern for Cosmos DB access
+   - **Presentation Layer**: WidgetComposer with theme support
+   - **Session**: Track conversation state and flow steps
+
+3. **Extend base classes from `core/`:**
+   - `UseCaseServer` - Main server class
+   - `PolicyEngine` - Business rules
+   - `WidgetComposer` - Widget building
+   - `SessionContext` - State management
+
+4. **See the healthcare example** in `use_cases/healthcare/` for a complete skeleton.
 
 ## 🤝 Contributing
 
