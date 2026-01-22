@@ -36,17 +36,17 @@ ChatKit uses a **Server-Driven UI** pattern:
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────────┐
-│  Python (widgets.py)              JSON Protocol              React (ChatKit) │
-│  ───────────────────              ─────────────              ─────────────── │
+│  Python (widgets.py)              JSON Protocol              React (ChatKit)  │
+│  ───────────────────              ─────────────              ───────────────  │
 │                                                                               │
-│  Button(                    →    {"type": "Button",    →    <button class=   │
-│    label="✓",                      "label": "✓",             "ck-btn--success │
+│  Button(                    →    {"type": "Button",    →    <button class=    │
+│    label="✓",                      "label": "✓",             "ck-btn--success│
 │    color="success",                "color": "success",        ck-btn--soft">  │
 │    variant="soft"                  "variant": "soft"}        ✓</button>       │
 │  )                                                                            │
 │                                                                               │
-│  You define STRUCTURE           Serialized over SSE      React renders HTML  │
-│  No CSS needed!                                          with built-in styles│
+│  You define STRUCTURE           Serialized over SSE      React renders HTML   │
+│  No CSS needed!                                          with built-in styles │
 └───────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -61,7 +61,7 @@ ChatKit uses a **Server-Driven UI** pattern:
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  Frontend (React)                  Backend (Python)                         │
 │  ─────────────────                 ─────────────────                        │
-│  @openai/chatkit-react      ←→     openai-chatkit + FastAPI                │
+│  @openai/chatkit-react      ←→     openai-chatkit + FastAPI                 │
 │  • Official UI components          • ChatKit protocol server                │
 │  • Streaming display               • Widget definitions                     │
 │  • Action handling                 • Azure OpenAI integration               │
@@ -350,26 +350,26 @@ az role assignment create \
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     Azure Container Apps                     │
+│                     Azure Container Apps                    │
 │  ┌─────────────────────────────────────────────────────┐    │
 │  │                 Order Returns App                   │    │
-│  │  ┌───────────────┐  ┌──────────────────────────┐   │    │
-│  │  │   FastAPI     │  │    ChatKit Server        │   │    │
-│  │  │   (main.py)   │──│  (retail/server.py)     │   │    │
-│  │  └───────────────┘  └──────────────────────────┘   │    │
+│  │  ┌───────────────┐  ┌──────────────────────────┐    │    │
+│  │  │   FastAPI     │  │    ChatKit Server        │    │    │
+│  │  │   (main.py)   │──│  (retail/server.py)      │    │    │
+│  │  └───────────────┘  └──────────────────────────┘    │    │
 │  │          │                      │                   │    │
-│  │          │              ┌───────┴───────┐          │    │
+│  │          │              ┌───────┴────────┐          │    │
 │  │          │              │  Retail Tools  │          │    │
 │  │          │              │ (lookup/return/│          │    │
 │  │          │              │  track/refund) │          │    │
-│  │          ▼              └───────┬───────┘          │    │
+│  │          ▼              └───────┬────────┘          │    │
 │  │  ┌───────────────┐              │                   │    │
 │  │  │ Cosmos DB     │◄─────────────┘                   │    │
 │  │  │ (cosmos_store)│                                  │    │
 │  │  └───────────────┘                                  │    │
 │  └─────────────────────────────────────────────────────┘    │
-│                           │                                  │
-└───────────────────────────┼──────────────────────────────────┘
+│                           │                                 │
+└───────────────────────────┼─────────────────────────────────┘
                             │ Managed Identity
                             ▼
                  ┌─────────────────────┐

@@ -13,8 +13,10 @@ This document explains the modular architecture of this ChatKit sample project, 
 7. [Project Structure](#project-structure)
 8. [Core Components](#core-components)
 9. [How the Retail Use Case Works](#how-the-retail-use-case-works)
-10. [Creating a New Use Case](#creating-a-new-use-case)
-11. [Widget Reference](#widget-reference)
+10. [How Widget Actions Work](#how-widget-actions-work-detailed)
+11. [Widget Orchestration: How the Flow is Controlled](#widget-orchestration-how-the-flow-is-controlled)
+12. [Creating a New Use Case](#creating-a-new-use-case)
+13. [Widget Reference](#widget-reference)
 
 ---
 
@@ -139,11 +141,11 @@ ChatKit implements a **Server-Driven UI** architecture. This is a fundamental pa
 │                          Browser (Final HTML/CSS)                           │
 │                                                                             │
 │   Actual styled buttons, cards, badges rendered to screen                   │
-│   User sees: ┌──────────────────────────────────────┐                       │
+│   User sees: ┌───────────────────────────────────────┐                      │
 │              │  � Order Details   [✅ Delivered]    │                      │
-│              │  Nike Air Max 90              $149.99│                     │
-│              │  [Start Return] [Track Package]    │                     │
-│              └──────────────────────────────────────┘                       │
+│              │  Nike Air Max 90              $149.99 │                      │
+│              │  [Start Return] [Track Package]       │                      │
+│              └───────────────────────────────────────┘                      │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -244,18 +246,18 @@ This is a crucial concept to understand: **widgets are NOT HTML sent from the se
 └─────────────────────────────────────────────────────────────────────────────┘
                                      │
                                      ▼ SSE Stream (JSON)
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  2. WIRE FORMAT: JSON Widget Definition                                     │
-│                                                                             │
-│     {                                                                       │
-│       "type": "Card",                                                       │
-│       "id": "order_widget",                                                 │
-│       "children": [                                                         │
-│         { "type": "Title", "id": "t1", "value": "Order #12345", "size": "lg" },│
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│  2. WIRE FORMAT: JSON Widget Definition                                              │
+│                                                                                      │
+│     {                                                                                │
+│       "type": "Card",                                                                │
+│       "id": "order_widget",                                                          │
+│       "children": [                                                                  │
+│         { "type": "Title", "id": "t1", "value": "Order #12345", "size": "lg" },      │
 │         { "type": "Button", "id": "b1", "label": "Start Return", "color": "primary" }│
-│       ]                                                                     │
-│     }                                                                       │
-└─────────────────────────────────────────────────────────────────────────────┘
+│       ]                                                                              │
+│     }                                                                                │
+└──────────────────────────────────────────────────────────────────────────────────────┘
                                      │
                                      ▼ JavaScript parses JSON
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -300,8 +302,8 @@ This project uses **official ChatKit React components** (`@openai/chatkit-react`
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         ARCHITECTURE                                         │
-│                                                                              │
+│                         ARCHITECTURE                                        │
+│                                                                             │
 │   ┌─────────────────────────┐           ┌──────────────────────────────┐    │
 │   │  React Frontend         │           │  Python Backend              │    │
 │   │  (Vite + TypeScript)    │  HTTP     │  (FastAPI)                   │    │
@@ -389,17 +391,17 @@ function App() {
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         DEVELOPMENT MODE                                     │
-│                                                                              │
+│                         DEVELOPMENT MODE                                    │
+│                                                                             │
 │   Terminal 1:                        Terminal 2:                            │
 │   python main.py                     cd frontend && npm run dev             │
 │   (Backend on :8000)                 (Vite on :3000 with proxy)             │
-│                                                                              │
-│   Browser: http://localhost:3000                                             │
+│                                                                             │
+│   Browser: http://localhost:3000                                            │
 │   Vite proxies /chatkit and /api to :8000                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-┌─────────────────────────────────────────────────────────────────────────────┐
+┌──────────────────────────────────────────────────────────────────────────────┐
 │                         PRODUCTION MODE                                      │
 │                                                                              │
 │   Build: cd frontend && npm run build                                        │
@@ -409,7 +411,7 @@ function App() {
 │   (Serves React build + API on :8000)                                        │
 │                                                                              │
 │   Browser: http://localhost:8000                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### React/Vue Implementation Pattern
@@ -700,7 +702,7 @@ Multiple use cases, shared infrastructure:
                 │                    │                    │
                 ▼                    ▼                    ▼
     ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-    │ Retail Returns │  │  Support Bot    │  │  Sales Agent    │
+    │ Retail Returns  │  │  Support Bot    │  │  Sales Agent    │
     │                 │  │                 │  │                 │
     │  ChatKit+Agent  │  │  ChatKit+Agent  │  │  ChatKit+Agent  │
     │  (Return tools) │  │  (FAQ tools)    │  │  (CRM tools)    │
@@ -785,12 +787,12 @@ Understanding the difference between **thread-scoped** and **retail** data is cr
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           DATA ARCHITECTURE                                  │
+│                           DATA ARCHITECTURE                                 │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  Thread A (Customer A)            Thread B (Customer B)                     │
 │  ┌─────────────────────┐          ┌─────────────────────┐                   │
-│  │ "Where's my order?" │          │ "I want to return" │                   │
+│  │ "Where's my order?" │          │ "I want to return"  │                   │
 │  │ Order lookup result │          │ Return eligibility  │                   │
 │  │ Tracking info       │          │ Return processed    │                   │
 │  └─────────────────────┘          └─────────────────────┘                   │
@@ -1088,7 +1090,7 @@ async def action(self, thread, action, sender, context):
 │  User types: "I want to return my Nike shoes"                               │
 │       │                                                                     │
 │       ▼                                                                     │
-│  respond() → Agent → LLM → Tool call (start_return) → Widget               │
+│  respond() → Agent → LLM → Tool call (start_return) → Widget                │
 │                  ▲                                                          │
 │                  │ $$$  LLM tokens consumed                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1118,9 +1120,330 @@ async def action(self, thread, action, sender, context):
 | `action()` method | `chatkit_server.py` | **Your handler** - all business logic |
 | Agent/LLM | N/A | **NOT used** for widget actions |
 
-## Creating a New Use Case
+---
 
-### Step 1: Create the Use Case Module
+## Widget Orchestration: How the Flow is Controlled
+
+This section explains **where the orchestration logic lives** and **how to make it dynamic**.
+
+### The Orchestration Layer: `action()` Method
+
+The **`action()` method in `server.py`** is the orchestration hub. It receives widget clicks and **decides what happens next**:
+
+```python
+# use_cases/retail/server.py
+
+async def action(self, thread, action, sender, context):
+    action_type = getattr(action, 'type', '')
+    payload = getattr(action, 'payload', {})
+    
+    # ═══════════════════════════════════════════════════════════════
+    # ORCHESTRATION LOGIC: What widget comes next?
+    # ═══════════════════════════════════════════════════════════════
+    
+    if action_type == "select_return_item":
+        # User selected an item → Show reasons widget
+        result = get_return_reasons()
+        widget = build_reasons_widget(result["reasons"], thread.id)
+        async for event in stream_widget(thread, widget):
+            yield event
+    
+    elif action_type == "select_reason":
+        # User selected reason → Show resolution options
+        result = get_resolution_options()
+        widget = build_resolution_widget(result["options"], thread.id)
+        async for event in stream_widget(thread, widget):
+            yield event
+    
+    elif action_type == "select_resolution":
+        # User selected resolution → Show shipping options
+        result = get_shipping_options()
+        widget = build_shipping_widget(result["options"], thread.id)
+        async for event in stream_widget(thread, widget):
+            yield event
+    
+    elif action_type == "select_shipping":
+        # Final step → Create return and show confirmation
+        result = create_return_request(...)
+        widget = build_confirmation_widget(result, thread.id)
+        async for event in stream_widget(thread, widget):
+            yield event
+```
+
+### Visual Flow: The Orchestration Chain
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    WIDGET-DRIVEN ORCHESTRATION FLOW                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌──────────────┐     click      ┌──────────────┐     click                 │
+│  │   Customer   │ ─────────────► │   Reasons    │ ─────────────►            │
+│  │   Widget     │                │   Widget     │                           │
+│  │              │                │              │                           │
+│  │  [Item A]    │                │  [Defective] │                           │
+│  │  [Item B] ←──┼── user clicks  │  [Wrong Size]│                           │
+│  │  [Item C]    │                │  [Changed]←──┼── user clicks             │
+│  └──────────────┘                └──────────────┘                           │
+│         │                               │                                   │
+│         ▼                               ▼                                   │
+│  action("select_return_item")    action("select_reason")                    │
+│         │                               │                                   │
+│         ▼                               ▼                                   │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │                    action() METHOD (server.py)                       │   │
+│  │                                                                      │   │
+│  │   if action_type == "select_return_item":                            │   │
+│  │       → build_reasons_widget() → stream to client                    │   │
+│  │                                                                      │   │
+│  │   if action_type == "select_reason":                                 │   │
+│  │       → build_resolution_widget() → stream to client                 │   │
+│  │                                                                      │   │
+│  │   ... and so on for each step                                        │   │
+│  └──────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Is the Flow Hardcoded?
+
+**Yes and No:**
+
+| Aspect | Hardcoded? | Where? | How to Make Dynamic? |
+|--------|------------|--------|----------------------|
+| **Action types** | Yes | Widget definitions (`ActionConfig`) | Use variables for action types |
+| **Next widget** | Partially | `action()` method if/elif chain | Move to config/database |
+| **Available options** | No | Fetched from Cosmos DB at runtime | Already dynamic |
+| **Conditional branches** | Yes | `action()` method logic | Use state machine pattern |
+
+### Making the Flow Dynamic: Strategy Patterns
+
+#### 1. **Data-Driven Flow Definition**
+
+Instead of hardcoding the flow, define it in configuration:
+
+```python
+# Define flow transitions in config (could be in Cosmos DB)
+RETURN_FLOW = {
+    "start": {
+        "widget": "returnable_items",
+        "next_on": {
+            "select_return_item": "reasons",
+        }
+    },
+    "reasons": {
+        "widget": "reasons",
+        "next_on": {
+            "select_reason": {
+                "CHANGED_MIND": "retention_offers",  # Conditional!
+                "default": "resolution",
+            }
+        }
+    },
+    "retention_offers": {
+        "widget": "retention",
+        "next_on": {
+            "accept_offer": "confirmation_kept",
+            "decline_offers": "resolution",
+        }
+    },
+    "resolution": {
+        "widget": "resolution",
+        "next_on": {
+            "select_resolution": "shipping",
+        }
+    },
+    "shipping": {
+        "widget": "shipping",
+        "next_on": {
+            "select_shipping": "confirmation",
+        }
+    },
+    "confirmation": {
+        "widget": "confirmation",
+        "next_on": {}  # Terminal state
+    }
+}
+
+# Then in action():
+async def action(self, thread, action, sender, context):
+    current_state = self._session_context.get("flow_state", "start")
+    flow_config = RETURN_FLOW.get(current_state, {})
+    
+    # Determine next state
+    transitions = flow_config.get("next_on", {})
+    next_state = transitions.get(action_type, transitions.get("default"))
+    
+    # Handle conditional transitions
+    if isinstance(next_state, dict):
+        condition_value = payload.get("reason_code", "default")
+        next_state = next_state.get(condition_value, next_state.get("default"))
+    
+    # Update state
+    self._session_context["flow_state"] = next_state
+    
+    # Build and stream next widget
+    widget = self._build_widget_for_state(next_state, thread.id)
+    async for event in stream_widget(thread, widget):
+        yield event
+```
+
+#### 2. **Conditional Branching Example: Retention Offers**
+
+The current implementation already has conditional logic for "Changed Mind" returns:
+
+```python
+# In action() - current implementation
+if action_type == "select_reason":
+    reason_code = payload.get("reason_code")
+    
+    if reason_code == "CHANGED_MIND":
+        # Branch: Offer retention discounts first
+        offers = get_retention_offers(customer_id)
+        widget = build_retention_widget(offers, thread.id)
+    else:
+        # Normal path: Go directly to resolution options
+        options = get_resolution_options()
+        widget = build_resolution_widget(options, thread.id)
+    
+    async for event in stream_widget(thread, widget):
+        yield event
+```
+
+### Two Entry Points for Widget Display
+
+Widgets can be triggered in **two ways**:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    TWO PATHS TO WIDGET DISPLAY                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  PATH 1: LLM-Driven (Agent Tools)                                           │
+│  ════════════════════════════════                                           │
+│                                                                             │
+│  User types message → Agent → Tool call → Set context flag                  │
+│                                               │                             │
+│                                               ▼                             │
+│                                      post_respond_hook()                    │
+│                                               │                             │
+│                                               ▼                             │
+│                                      if _show_widget: stream_widget()       │
+│                                                                             │
+│  EXAMPLE: "I want to return something"                                      │
+│           → lookup_customer() sets _show_customer_widget = True             │
+│           → post_respond_hook() streams customer widget                     │
+│                                                                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  PATH 2: Direct Action (Widget Clicks)                                      │
+│  ═════════════════════════════════════                                      │
+│                                                                             │
+│  User clicks button → action() → Business logic → stream_widget()           │
+│                                                                             │
+│  EXAMPLE: User clicks [Start Return] button                                 │
+│           → action() receives type="select_return_item"                     │
+│           → Stores context, determines next step                            │
+│           → Streams reasons widget directly                                 │
+│                                                                             │
+│  ✓ No LLM call                                                              │
+│  ✓ Instant response                                                         │
+│  ✓ Deterministic flow                                                       │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Session Context: Tracking State Across Actions
+
+The server maintains session state to track the return flow:
+
+```python
+class RetailChatKitServer(BaseChatKitServer):
+    def __init__(self, data_store):
+        self._session_context = {}  # Tracks flow state
+    
+    async def action(self, thread, action, sender, context):
+        # Store selections as user progresses
+        if action_type == "select_return_item":
+            self._session_context["customer_id"] = payload.get("customer_id")
+            self._session_context["selected_order_id"] = payload.get("order_id")
+            self._session_context["selected_product_id"] = payload.get("product_id")
+        
+        elif action_type == "select_reason":
+            self._session_context["reason_code"] = payload.get("reason_code")
+        
+        elif action_type == "select_resolution":
+            self._session_context["resolution"] = payload.get("resolution")
+        
+        elif action_type == "select_shipping":
+            # Final step: Use all accumulated context to create return
+            result = create_return_request(
+                customer_id=self._session_context["customer_id"],
+                order_id=self._session_context["selected_order_id"],
+                product_id=self._session_context["selected_product_id"],
+                reason_code=self._session_context["reason_code"],
+                resolution=self._session_context["resolution"],
+                shipping_method=payload.get("shipping_method"),
+            )
+```
+
+### Key Design Decisions
+
+| Decision | Current Implementation | Alternative |
+|----------|----------------------|-------------|
+| **Flow control** | If/elif in `action()` | State machine, config-driven |
+| **State storage** | In-memory `_session_context` | Cosmos DB per-thread state |
+| **Next widget** | Determined by action type | Lookup from flow config |
+| **Conditional branches** | Inline if statements | Rule engine, decision table |
+| **LLM involvement** | Only for initial message | Could re-involve for complex decisions |
+
+### Summary: Where Orchestration Lives
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  ORCHESTRATION LOCATIONS                                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌────────────────────────┐                                                 │
+│  │  server.py             │                                                 │
+│  │  ──────────            │                                                 │
+│  │                        │                                                 │
+│  │  action() method       │ ◄── Main orchestration hub                      │
+│  │    • Receives clicks   │     Decides: what widget comes next?            │
+│  │    • Stores context    │     Contains: flow logic, conditionals          │
+│  │    • Builds next widget│                                                 │
+│  │                        │                                                 │
+│  │  post_respond_hook()   │ ◄── Secondary path (after LLM response)         │
+│  │    • Checks flags      │     Used for: initial widget display            │
+│  │    • Streams widgets   │                                                 │
+│  └────────────────────────┘                                                 │
+│                                                                             │
+│  ┌────────────────────────┐                                                 │
+│  │  tools.py / agent.py   │                                                 │
+│  │  ───────────────────   │                                                 │
+│  │                        │                                                 │
+│  │  Tool functions set    │ ◄── Triggers widgets via context flags          │
+│  │  context flags like:   │     _show_customer_widget = True                │
+│  │  _show_reasons_widget  │     _show_returnable_items_widget = True        │
+│  │                        │                                                 │
+│  └────────────────────────┘                                                 │
+│                                                                             │
+│  ┌────────────────────────┐                                                 │
+│  │  widgets.py            │                                                 │
+│  │  ──────────            │                                                 │
+│  │                        │                                                 │
+│  │  ActionConfig defines  │ ◄── Declares action types and payloads          │
+│  │  what data is sent     │     type="select_reason"                        │
+│  │  when user clicks      │     payload={"reason_code": "DEFECTIVE"}        │
+│  │                        │                                                 │
+│  └────────────────────────┘                                                 │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Creating a New Use Case
 
 ```bash
 mkdir use_cases/my_use_case
