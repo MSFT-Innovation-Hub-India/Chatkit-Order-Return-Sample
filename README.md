@@ -187,15 +187,11 @@ chatkit-order-returns/
 ├── ARCHITECTURE.md          # Detailed architecture documentation
 ├── .env.example             # Environment variables template
 │
-├── shared/                  # Shared configuration modules
-│   └── cosmos_config.py     # Centralized Cosmos DB configuration
-│
-├── scripts/                 # Utility scripts
-│   └── populate_cosmosdb.py # Script to populate Cosmos DB with sample data
-│
-├── data/
-│   └── sample/              # Sample data definitions
-│       └── retail_data.py   # Products, customers, orders, returns data
+├── docs/                    # Documentation
+│   ├── WORKFLOW_STATUS.md   # Tool execution status guide
+│   ├── DUAL_INPUT_ARCHITECTURE.md  # Widget + text input docs
+│   ├── AZURE_OPENAI_ADAPTATIONS.md # Azure OpenAI setup
+│   └── INDUSTRY_USE_CASES.md       # Domain extension examples
 │
 ├── frontend/                # React frontend (official ChatKit UI)
 │   ├── package.json         # Node.js dependencies
@@ -210,31 +206,24 @@ chatkit-order-returns/
 │   ├── presentation.py      # WidgetComposer, WidgetTheme
 │   ├── session.py           # SessionContext, SessionManager
 │   ├── orchestration.py     # UseCaseServer base class
+│   ├── workflow_status.py   # Tool execution status streaming (generic)
 │   └── template.py          # Documentation for creating new use cases
 │
 ├── use_cases/
 │   ├── retail/              # Retail order returns use case
 │   │   ├── __init__.py      # Exports RetailChatKitServer
 │   │   ├── server.py        # ChatKit server for retail returns
-│   │   ├── session.py       # ReturnSessionContext
 │   │   ├── tools.py         # Tools for order lookup, returns, etc.
+│   │   ├── tool_status.py   # Retail tool status messages
 │   │   ├── cosmos_client.py # Cosmos DB client for retail data
 │   │   ├── cosmos_store.py  # ChatKit thread storage in Cosmos DB
-│   │   ├── domain/          # Pure business logic (no I/O)
-│   │   │   ├── policies.py  # ReturnEligibilityPolicy, RefundPolicy
-│   │   │   └── services.py  # RefundCalculator, ReturnRequestBuilder
-│   │   └── presentation/    # Widget composition
-│   │       └── composer.py  # ReturnWidgetComposer
+│   │   ├── widgets.py       # Widget building functions
+│   │   └── sample_data.py   # Sample retail data
 │   │
 │   └── healthcare/          # Healthcare appointment scheduling (example)
 │       ├── __init__.py      # Exports HealthcareChatKitServer
 │       ├── server.py        # ChatKit server extending UseCaseServer
-│       ├── session.py       # AppointmentSessionContext
-│       ├── domain/          # Pure business logic
-│       │   ├── policies.py  # SchedulingRules, CancellationPolicy
-│       │   └── services.py  # ScheduleCalculator, ConflictChecker
-│       └── presentation/    # Widget composition
-│           └── composer.py  # AppointmentWidgetComposer
+│       └── tool_status.py   # Healthcare tool status messages (example)
 │
 ├── static/
 │   ├── index.html           # Vanilla JS frontend (fallback)
