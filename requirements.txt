@@ -1,0 +1,20 @@
+# ChatKit Server with Azure OpenAI
+openai-chatkit>=0.1.0
+openai>=1.58.0
+openai-agents>=0.1.0
+
+# FastAPI Web Framework
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+
+# Azure Services
+azure-identity>=1.19.0
+azure-cosmos>=4.7.0
+
+# Utilities
+python-dotenv>=1.0.0
+pydantic>=2.10.0
+pydantic-settings>=2.7.0
+
+# HTTP Client
+httpx>=0.28.0

@@ -1,0 +1,57 @@
+# ChatKit Order Returns Sample - Azure Container Apps
+
+name: chatkit-order-returns
+
+metadata:
+  template: chatkit-order-returns@1.0.0
+
+services:
+  api:
+    project: .
+    language: python
+    host: containerapp
+    docker:
+      path: ./Dockerfile
+    
+hooks:
+  preprovision:
+    posix:
+      shell: sh
+      run: echo "Preparing to provision Azure resources..."
+    windows:
+      shell: pwsh
+      run: Write-Host "Preparing to provision Azure resources..."
+  
+  postprovision:
+    posix:
+      shell: sh
+      run: |
+        echo "Azure resources provisioned successfully!"
+        echo "Container App URL: ${SERVICE_API_URI}"
+    windows:
+      shell: pwsh
+      run: |
+        Write-Host "Azure resources provisioned successfully!"
+        Write-Host "Container App URL: $env:SERVICE_API_URI"
+
+  predeploy:
+    posix:
+      shell: sh
+      run: |
+        echo "Building and pushing container image..."
+    windows:
+      shell: pwsh
+      run: |
+        Write-Host "Building and pushing container image..."
+
+  postdeploy:
+    posix:
+      shell: sh
+      run: |
+        echo "Deployment complete!"
+        echo "Access your Order Returns app at: ${SERVICE_API_URI}"
+    windows:
+      shell: pwsh
+      run: |
+        Write-Host "Deployment complete!"
+        Write-Host "Access your Order Returns app at: $env:SERVICE_API_URI"

@@ -1,0 +1,140 @@
+/*
+ * ChatKit Branding Configuration
+ * 
+ * Customize this file to match your organization's brand.
+ * All colors, fonts, and visual elements can be adjusted here.
+ * 
+ * To apply your brand:
+ * 1. Update the CSS variables below
+ * 2. Replace /static/logo.png with your logo (recommended: 32x32 or 40x40 px)
+ * 3. Replace /static/favicon.ico with your favicon
+ */
+
+:root {
+    /* ==================== PRIMARY BRAND COLORS ==================== */
+    
+    /* Main brand color - used for header, buttons, links */
+    --brand-primary: #0078d4;
+    --brand-primary-hover: #106ebe;
+    --brand-primary-light: #e6f2ff;
+    
+    /* Header gradient (set both to same color for solid background) */
+    --header-gradient-start: #0078d4;
+    --header-gradient-end: #005a9e;
+    
+    /* ==================== SEMANTIC COLORS ==================== */
+    
+    /* Action colors */
+    --color-success: #28a745;
+    --color-warning: #ffc107;
+    --color-danger: #dc3545;
+    --color-secondary: #6c757d;
+    
+    /* ==================== SURFACE COLORS ==================== */
+    
+    /* Backgrounds */
+    --background-page: #f5f5f5;
+    --background-surface: #ffffff;
+    --background-sidebar: #ffffff;
+    
+    /* Text */
+    --text-primary: #333333;
+    --text-secondary: #666666;
+    --text-on-primary: #ffffff;
+    
+    /* Borders */
+    --border-color: #e0e0e0;
+    --border-radius: 8px;
+    
+    /* ==================== TYPOGRAPHY ==================== */
+    
+    --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    --font-size-base: 14px;
+    --font-size-lg: 16px;
+    --font-size-sm: 12px;
+    
+    /* ==================== BRAND IDENTITY ==================== */
+    
+    /* Brand name shown in header */
+    --brand-name: "ChatKit Todo";
+    --brand-tagline: "AI-Powered Task Management";
+    
+    /* Logo settings */
+    --logo-width: 32px;
+    --logo-height: 32px;
+    --logo-border-radius: 6px;
+    
+    /* ==================== WIDGET STYLING ==================== */
+    
+    /* Widget cards */
+    --widget-background: #ffffff;
+    --widget-border-radius: 12px;
+    --widget-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    
+    /* Widget buttons */
+    --widget-button-radius: 6px;
+    
+    /* ==================== CHAT STYLING ==================== */
+    
+    /* User message bubble */
+    --chat-user-background: var(--brand-primary);
+    --chat-user-text: #ffffff;
+    
+    /* Assistant message bubble */
+    --chat-assistant-background: #f0f0f0;
+    --chat-assistant-text: var(--text-primary);
+}
+
+/* ==================== EXAMPLE BRAND THEMES ==================== */
+
+/*
+ * Uncomment one of these themes or create your own:
+ */
+
+/* --- Microsoft Theme --- */
+/*
+:root {
+    --brand-primary: #0078d4;
+    --header-gradient-start: #0078d4;
+    --header-gradient-end: #005a9e;
+}
+*/
+
+/* --- GitHub Theme --- */
+/*
+:root {
+    --brand-primary: #238636;
+    --header-gradient-start: #24292f;
+    --header-gradient-end: #1c2128;
+}
+*/
+
+/* --- Slack Theme --- */
+/*
+:root {
+    --brand-primary: #4A154B;
+    --header-gradient-start: #4A154B;
+    --header-gradient-end: #611f69;
+}
+*/
+
+/* --- Salesforce Theme --- */
+/*
+:root {
+    --brand-primary: #00a1e0;
+    --header-gradient-start: #032d60;
+    --header-gradient-end: #00a1e0;
+}
+*/
+
+/* --- Custom Corporate Theme --- */
+/*
+:root {
+    --brand-primary: #YOUR_COLOR;
+    --brand-primary-hover: #YOUR_HOVER_COLOR;
+    --header-gradient-start: #YOUR_GRADIENT_START;
+    --header-gradient-end: #YOUR_GRADIENT_END;
+    --brand-name: "Your Company Name";
+    --brand-tagline: "Your Tagline Here";
+}
+*/
