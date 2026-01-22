@@ -14,9 +14,10 @@ This document explains the modular architecture of this ChatKit sample project, 
 8. [Core Components](#core-components)
 9. [How the Retail Use Case Works](#how-the-retail-use-case-works)
 10. [How Widget Actions Work](#how-widget-actions-work-detailed)
-11. [Widget Orchestration: How the Flow is Controlled](#widget-orchestration-how-the-flow-is-controlled)
-12. [Creating a New Use Case](#creating-a-new-use-case)
-13. [Widget Reference](#widget-reference)
+11. [Dual-Input Architecture: Text + Widget Convergence](#dual-input-architecture-text--widget-convergence)
+12. [Widget Orchestration: How the Flow is Controlled](#widget-orchestration-how-the-flow-is-controlled)
+13. [Creating a New Use Case](#creating-a-new-use-case)
+14. [Widget Reference](#widget-reference)
 
 ---
 
@@ -1119,6 +1120,285 @@ async def action(self, thread, action, sender, context):
 | `threads.custom_action` | ChatKit protocol | Request type that routes to `action()` |
 | `action()` method | `chatkit_server.py` | **Your handler** - all business logic |
 | Agent/LLM | N/A | **NOT used** for widget actions |
+
+---
+
+## Dual-Input Architecture: Text + Widget Convergence
+
+This section explains how the system handles **both text-based natural language input and widget button clicks**, and how they converge into a unified processing flow.
+
+### The Challenge: Two Input Paths, One Flow
+
+Users can interact with the system in two ways:
+1. **Widget Buttons**: Click a button like "Full Refund" or "Schedule Pickup"
+2. **Natural Language**: Type "I want a full refund" or "schedule the pickup please"
+
+Both must result in the same outcome—recording the selection and advancing the return flow.
+
+### Architecture Overview: Input Convergence
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     DUAL-INPUT CONVERGENCE ARCHITECTURE                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   USER INPUT                                                                │
+│   ══════════                                                                │
+│        │                                                                    │
+│        ├──────────────────────────┬─────────────────────────────┐           │
+│        ▼                          ▼                             │           │
+│   ┌──────────────┐         ┌──────────────┐                     │           │
+│   │ WIDGET CLICK │         │  TEXT INPUT  │                     │           │
+│   │              │         │              │                     │           │
+│   │ [Full Refund]│         │ "I want a    │                     │           │
+│   │    button    │         │ full refund" │                     │           │
+│   └──────┬───────┘         └──────┬───────┘                     │           │
+│          │                        │                             │           │
+│          ▼                        ▼                             │           │
+│   ┌──────────────┐         ┌──────────────┐                     │           │
+│   │   action()   │         │   respond()  │                     │           │
+│   │    method    │         │    method    │                     │           │
+│   │              │         │  + Agent/LLM │                     │           │
+│   └──────┬───────┘         └──────┬───────┘                     │           │
+│          │                        │                             │           │
+│          │                        ▼                             │           │
+│          │                 ┌──────────────┐                     │           │
+│          │                 │ set_user_    │                     │           │
+│          │                 │ selection()  │                     │           │
+│          │                 │    tool      │                     │           │
+│          │                 └──────┬───────┘                     │           │
+│          │                        │                             │           │
+│          ▼                        ▼                             │           │
+│   ┌─────────────────────────────────────────────────────────┐   │           │
+│   │              SESSION CONTEXT (Unified State)            │   │           │
+│   │                                                         │   │           │
+│   │   {                                                     │   │           │
+│   │     "customer_id": "CUST-1001",                         │   │           │
+│   │     "selected_items": [...],                            │   │           │
+│   │     "reason_code": "DAMAGED",        ← Both paths       │   │           │
+│   │     "resolution": "FULL_REFUND",       update this!     │   │           │
+│   │     "shipping_method": "SCHEDULE_PICKUP"                │   │           │
+│   │   }                                                     │   │           │
+│   └─────────────────────────────────────────────────────────┘   │           │
+│                              │                                  │           │
+│                              ▼                                  │           │
+│   ┌─────────────────────────────────────────────────────────┐   │           │
+│   │         finalize_return_from_session()                  │   │           │
+│   │         Creates return using session data               │   │           │
+│   └─────────────────────────────────────────────────────────┘   │           │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Path 1: Widget Button Click
+
+When a user clicks a widget button:
+
+```python
+# server.py - action() method handles widget clicks directly
+
+async def action(self, thread, action, sender, context):
+    action_type = getattr(action, 'type', '')
+    payload = getattr(action, 'payload', {})
+    
+    if action_type == "select_resolution":
+        # Extract resolution from button payload
+        resolution_code = payload.get("resolution")
+        
+        # Store in session context
+        session = self._session_context
+        session["resolution"] = resolution_code
+        
+        # Show next widget (shipping options)
+        result = get_shipping_options()
+        widget = build_shipping_widget(result["options"], thread.id)
+        async for event in stream_widget(thread, widget):
+            yield event
+```
+
+**Key Points:**
+- No LLM involved—direct mapping from button payload to action
+- Fast and deterministic
+- Payload carries all needed data (resolution code, item ID, etc.)
+
+### Path 2: Natural Language Text Input
+
+When a user types their selection:
+
+```python
+# server.py - respond() method handles text input through the agent
+
+async def respond(self, thread, context):
+    # 1. Build context summary for the agent
+    context_summary = self._build_context_summary()
+    
+    # 2. Prepend session state to user's message
+    user_input = thread.messages[-1].content
+    augmented_input = f"""
+[CURRENT SESSION STATE]
+{context_summary}
+
+User message: {user_input}
+"""
+    
+    # 3. Agent processes with tools available
+    async for event in Runner.run(agent, augmented_input):
+        yield event
+```
+
+The agent then uses the `set_user_selection` tool to record the typed choice:
+
+```python
+# Tool used by agent when user types their selection
+
+@function_tool
+async def tool_set_user_selection(
+    ctx: RunContextWrapper,
+    selection_type: str,     # "reason", "resolution", or "shipping"
+    selection_code: str,     # "FULL_REFUND", "DAMAGED", etc.
+) -> str:
+    session = ctx.context._session_context
+    
+    if selection_type == "resolution":
+        session["resolution"] = selection_code
+        return "Recorded. Now show shipping options."
+    
+    # ... similar for reason and shipping
+```
+
+**Key Points:**
+- LLM interprets natural language ("full refund" → `FULL_REFUND`)
+- `set_user_selection` tool records the choice in session
+- Agent then calls the next step (e.g., `get_shipping_options`)
+
+### The Session Context: Where Both Paths Converge
+
+The **session context** is the shared state that both input paths write to:
+
+```python
+# Session context structure (stored on server instance)
+self._session_context = {
+    # Customer identification
+    "customer_id": "CUST-1001",
+    "customer_name": "Jane Smith",
+    "customer_tier": "Gold",
+    
+    # What was shown to user (for NL reference)
+    "displayed_orders": [
+        {
+            "order_id": "ORD-78234",
+            "items": [
+                {"product_id": "PROD-001", "name": "Blue Wireless Widget", ...},
+                {"product_id": "PROD-002", "name": "Premium Protective Case", ...}
+            ]
+        }
+    ],
+    
+    # User's selections (updated by EITHER path)
+    "selected_items": [...],
+    "reason_code": "DAMAGED",           # Set by widget OR tool
+    "resolution": "FULL_REFUND",        # Set by widget OR tool
+    "shipping_method": "SCHEDULE_PICKUP" # Set by widget OR tool
+}
+```
+
+### Natural Language Understanding with Session Context
+
+When the user types natural language, the agent receives the session state as context:
+
+```
+[CURRENT SESSION STATE]
+Customer: Jane Smith (ID: CUST-1001)
+
+Items shown to customer (available for return):
+  Order ORD-78234:
+    - Blue Wireless Widget (Product ID: PROD-001, Price: $49.99, Qty: 2)
+    - Premium Protective Case (Product ID: PROD-002, Price: $19.99, Qty: 1)
+
+Items selected for return:
+  - Blue Wireless Widget from order ORD-78234
+
+Return reason: DAMAGED
+Resolution: (not yet selected)
+
+User message: I want a full refund please
+```
+
+With this context, the agent:
+1. Understands "full refund" refers to the `FULL_REFUND` resolution option
+2. Calls `set_user_selection(selection_type="resolution", selection_code="FULL_REFUND")`
+3. Then calls `get_shipping_options` to show the next widget
+
+### Avoiding Redundant Widgets
+
+When the user types their selection, we **don't show the widget again**:
+
+```python
+# System prompt instructs the agent:
+
+"""
+HANDLING USER TYPED SELECTIONS (CRITICAL):
+When the user TYPES their selection instead of clicking a button:
+
+1. Match their input to the closest option code
+2. Use set_user_selection tool to record it
+3. Then proceed to the NEXT step - don't show the same widget again!
+
+Example:
+- User types "full refund" 
+- Call set_user_selection(selection_type="resolution", selection_code="FULL_REFUND")
+- Then call get_shipping_options (NOT get_resolution_options!)
+"""
+```
+
+### Finalizing the Return: Using Session Data
+
+Both paths lead to `finalize_return_from_session()` which reads from session:
+
+```python
+@function_tool
+async def tool_finalize_return_from_session(ctx):
+    session = ctx.context._session_context
+    
+    # All data comes from session - works for both input paths!
+    customer_id = session.get("customer_id")
+    selected_items = session.get("selected_items", [])
+    reason_code = session.get("reason_code")
+    resolution = session.get("resolution")
+    shipping_method = session.get("shipping_method")
+    
+    # Create the return
+    result = create_return_request(
+        customer_id=customer_id,
+        order_id=selected_items[0]["order_id"],
+        items=selected_items,
+        reason_code=reason_code,
+        resolution=resolution,
+        shipping_method=shipping_method,
+    )
+    
+    return f"Return {result['id']} created!"
+```
+
+### Summary: Dual-Input Components
+
+| Component | Role | Used By |
+|-----------|------|---------|
+| `action()` method | Handles widget button clicks directly | Widget Path |
+| `respond()` method | Routes text to agent/LLM | Text Path |
+| `set_user_selection` tool | Records typed selections | Text Path |
+| `_session_context` | Shared state for both paths | Both |
+| `finalize_return_from_session` | Creates return from session | Both |
+| System prompt | Guides agent on NL interpretation | Text Path |
+
+### Best Practices for Dual-Input Design
+
+1. **Session is the Source of Truth**: Both paths write to session context
+2. **Payload Carries All Data**: Widget buttons include all needed IDs/codes
+3. **Agent Has Full Context**: Session state is injected into agent input
+4. **Don't Duplicate Widgets**: When user types selection, proceed to next step
+5. **Use Tools for NL**: `set_user_selection` bridges NL to session state
+6. **Finalize from Session**: Final action reads from session, not parameters
 
 ---
 

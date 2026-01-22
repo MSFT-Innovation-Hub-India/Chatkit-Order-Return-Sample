@@ -126,6 +126,13 @@ class RetailCosmosClient:
                 if eligibility["eligible"]:
                     item_copy = item.copy()
                     item_copy["return_eligibility"] = eligibility
+                    # Enrich with product name from catalog
+                    product = self.get_product_by_id(item.get("product_id", ""))
+                    if product:
+                        item_copy["name"] = product.get("name", "Unknown Product")
+                        item_copy["category"] = product.get("category", "")
+                    else:
+                        item_copy["name"] = f"Product {item.get('product_id', 'Unknown')}"
                     returnable_items.append(item_copy)
             
             if returnable_items:

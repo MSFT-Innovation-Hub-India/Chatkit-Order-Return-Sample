@@ -258,6 +258,76 @@ Assistant: I'm sorry to hear that! Since this is a defective item, you qualify f
 [Shows return confirmation widget with shipping label option]
 ```
 
+## 🔄 Dual-Input Architecture: Text + Widget
+
+A key feature of this ChatKit implementation is supporting **both widget button clicks AND natural language text input**, with both converging into the same processing flow.
+
+### How It Works
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         USER INPUT                                      │
+│                                                                         │
+│   ┌─────────────────┐              ┌─────────────────┐                  │
+│   │  Widget Click   │              │   Text Input    │                  │
+│   │  [Full Refund]  │              │ "I want a full  │                  │
+│   │     button      │              │    refund"      │                  │
+│   └────────┬────────┘              └────────┬────────┘                  │
+│            │                                │                           │
+│            ▼                                ▼                           │
+│   ┌─────────────────┐              ┌─────────────────┐                  │
+│   │   action()      │              │   Agent/LLM     │                  │
+│   │ Direct mapping  │              │  Interprets NL  │                  │
+│   │ from payload    │              │  + uses tools   │                  │
+│   └────────┬────────┘              └────────┬────────┘                  │
+│            │                                │                           │
+│            └────────────┬───────────────────┘                           │
+│                         ▼                                               │
+│            ┌─────────────────────────┐                                  │
+│            │    SESSION CONTEXT      │                                  │
+│            │  (Unified State Store)  │                                  │
+│            │                         │                                  │
+│            │  resolution: FULL_REFUND│  ← Both paths update this!       │
+│            └────────────┬────────────┘                                  │
+│                         ▼                                               │
+│            ┌─────────────────────────┐                                  │
+│            │   Next Step / Finalize  │                                  │
+│            └─────────────────────────┘                                  │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Components
+
+| Component | Purpose |
+|-----------|---------|
+| **`action()` method** | Handles widget button clicks directly (no LLM) |
+| **`respond()` method** | Routes text input through the Agent/LLM |
+| **`set_user_selection` tool** | Agent tool to record typed selections |
+| **Session Context** | Shared state that both paths write to |
+| **`finalize_return_from_session`** | Creates return using session data |
+
+### Examples
+
+**Widget Button Click:**
+```
+User clicks [Full Refund] button
+  → action() receives {type: "select_resolution", payload: {resolution: "FULL_REFUND"}}
+  → Stores in session: resolution = "FULL_REFUND"
+  → Shows shipping widget
+```
+
+**Natural Language Input:**
+```
+User types: "I would like a full refund please"
+  → respond() sends to Agent with session context
+  → Agent recognizes intent, calls set_user_selection(type="resolution", code="FULL_REFUND")
+  → Stores in session: resolution = "FULL_REFUND"  
+  → Agent calls get_shipping_options
+  → Shows shipping widget
+```
+
+Both paths result in the same outcome! For detailed documentation, see [ARCHITECTURE.md](ARCHITECTURE.md#dual-input-architecture-text--widget-convergence).
+
 ## ☁️ Deploy to Azure Container Apps
 
 ### Using Azure Developer CLI (Recommended)
