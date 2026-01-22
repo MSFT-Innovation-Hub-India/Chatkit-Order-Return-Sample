@@ -88,8 +88,8 @@ classDiagram
         <<🟦 Core Framework>>
         +str thread_id
         +str customer_id
-        +Dict selections
-        +List queued_widgets
+        +dict selections
+        +list queued_widgets
         +to_context_string() str
         +queue_widget(type, data)
     }
@@ -127,8 +127,8 @@ classDiagram
     class ReturnSessionContext {
         <<🟩 Retail Use Case>>
         +ReturnFlowStep flow_step
-        +List displayed_orders
-        +List selected_items
+        +list displayed_orders
+        +list selected_items
         +str reason_code
         +str resolution
         +is_ready_to_create_return() bool

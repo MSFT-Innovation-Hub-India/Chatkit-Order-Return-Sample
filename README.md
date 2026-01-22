@@ -1,6 +1,6 @@
 # ChatKit Order Returns Sample with Azure OpenAI
 
-A self-hosted ChatKit order returns management application powered by Azure OpenAI, featuring interactive widgets and a modular architecture designed for retail customer service.
+A self-hosted ChatKit order returns management application powered by OpenAI Agents SDK, Azure OpenAI, featuring interactive widgets and a modular architecture designed for retail customer service.
 
 ## 🎯 Features
 
