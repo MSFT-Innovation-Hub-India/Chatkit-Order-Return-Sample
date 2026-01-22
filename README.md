@@ -2,15 +2,89 @@
 
 A self-hosted ChatKit order returns management application powered by OpenAI Agents SDK, Azure OpenAI, featuring interactive widgets and a modular architecture designed for retail customer service.
 
-## 🎯 Features
+## 🛒 Order Returns Capabilities
+
+This sample implements a complete **retail order returns workflow** with the following features:
+
+- **Customer Lookup**: Search and identify customers by email, name, or customer ID
+- **Order History**: View recent orders with product details, prices, and order status
+- **Return Eligibility**: Automatic validation of return windows and product eligibility
+- **Return Reasons**: Guided selection of return reasons (defective, wrong item, changed mind, etc.)
+- **Resolution Options**: Support for full refunds, exchanges, and store credit
+- **Shipping Methods**: Multiple return shipping options (prepaid label, drop-off, scheduled pickup)
+- **Return Confirmation**: Complete return request creation with tracking ID and shipping label
+
+### Extensible Architecture
+
+This solution follows a **layered, extensible architecture** that separates business logic from infrastructure. While this sample demonstrates a retail order returns use case, the same patterns can be adapted for other scenarios:
+
+- **Healthcare**: Appointment scheduling, prescription refills, patient inquiries
+- **Banking**: Account inquiries, transaction disputes, loan applications
+- **Travel**: Booking management, itinerary changes, loyalty programs
+- **HR/Internal**: Employee onboarding, IT helpdesk, policy questions
+
+See the `core/` framework module and `use_cases/healthcare/` skeleton for guidance on creating new use cases.
+
+## ⚡ Technical Capabilities
+
+### Immersive Widget-Driven Workflow
+
+Instead of requiring users to type their choices at every step, this application presents **interactive UI widgets** that guide users through the workflow. This creates an immersive, point-and-click experience while still supporting natural language when preferred.
+
+### Dual-Input Architecture: Widgets + Text
+
+Users can **interchangeably** use either input mode at any point in the conversation:
+
+| Input Mode | How It Works | Response Time |
+|------------|--------------|---------------|
+| **Widget Click** | Direct action execution—no LLM call needed | ⚡ Immediate |
+| **Text Input** | Agent interprets intent via LLM, then executes | 🔄 Slightly longer |
+
+Both modes converge to the **same application state**, ensuring a consistent experience regardless of how the user interacts.
+
+### Widget-Driven Flow Navigation
+
+When a user clicks a widget button (e.g., selects a return reason):
+1. The click triggers a **direct tool call**—bypassing the LLM entirely
+2. The session state is updated immediately
+3. The **next widget in the workflow** is automatically presented
+
+This creates a fast, guided experience where each action seamlessly leads to the next step.
+
+### Text Input Convergence
+
+When a user types instead of clicking (e.g., "I want a full refund"):
+1. The text is sent to the **Agent/LLM** for interpretation
+2. The Agent identifies intent and calls the appropriate tool
+3. The session state converges to the **same state** as the widget path
+4. The next widget is presented
+
+> 💡 **Performance Note**: Widget clicks are faster since they skip the LLM inference step, but both paths result in identical outcomes.
+
+### Extensible Tool Architecture
+
+The function tools can be extended beyond local implementations:
+- Current tools use **OpenAI Agents SDK** `@function_tool` decorators
+- Tools can be extended to connect to **MCP (Model Context Protocol) Servers** for distributed tool execution
+- This enables integration with external services and enterprise systems
+
+### Azure Cosmos DB Integration
+
+Every action in the workflow involves **Azure Cosmos DB** operations:
+- **Customer Lookup**: Query customers by email, name, or ID
+- **Order Retrieval**: Fetch order history and product details
+- **Eligibility Checks**: Validate return windows and policies
+- **Return Creation**: Insert new return requests with tracking IDs
+- **Thread Persistence**: Store conversation history and session state
+
+## 🛠️ Technology Stack
 
 - **Official ChatKit React UI**: Uses OpenAI's `@openai/chatkit-react` components
 - **ChatKit Protocol**: Backend uses `openai-chatkit` Python library
-- **OpenAI Agents SDK**: Built with `openai-agents` for tool orchestration and agent workflows
+- **OpenAI Agents SDK**: Built with `openai-agents` for tool orchestration and agent workflows (uses Responses API, not Chat Completions)
 - **Azure OpenAI**: Powered by Azure OpenAI with GPT-4o model
 - **Azure Cosmos DB**: Persistent storage for orders, customers, and returns
 - **Interactive Widgets**: Rich UI with buttons, forms, order details, and status badges
-- **Returns Workflow**: Complete returns processing with eligibility checks
 - **Customizable Branding**: Easy logo, colors, and styling customization
 - **Self-Hosted**: Full control over your data and infrastructure
 - **Azure Container Apps**: Cloud-native deployment with auto-scaling
@@ -194,11 +268,20 @@ chatkit-order-returns/
    cp .env.example .env
    ```
    
-   Edit `.env` with your Azure OpenAI settings:
+   Edit `.env` with your Azure settings:
    ```env
+   # Azure OpenAI Configuration
    AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
    AZURE_OPENAI_DEPLOYMENT=gpt-4o
    AZURE_OPENAI_API_VERSION=2025-01-01-preview
+   
+   # Azure Cosmos DB Configuration
+   COSMOS_ENDPOINT=https://your-cosmosdb.documents.azure.com:443/
+   COSMOS_DATABASE=db001
+   
+   # Optional: Branding
+   BRAND_NAME=Order Returns
+   BRAND_TAGLINE=AI-Powered Returns Management
    ```
 
 5. **Login to Azure (for authentication)**
@@ -206,46 +289,21 @@ chatkit-order-returns/
    az login
    ```
 
-6. **Run the application**
+6. **Start the backend server**
    ```bash
    python main.py
    ```
+   The backend will start on `http://localhost:8000`
 
-7. **Open your browser**
-   Navigate to `http://localhost:8000`
+7. **Start the frontend development server** (in a new terminal)
+   ```bash
+   cd frontend
+   npm run dev
+   ```
+   The frontend will start on `http://localhost:3000`
 
-## 🎨 Branding & Customization
-
-Customize the app's appearance to match your organization's brand:
-
-### Environment Variables
-
-```env
-# In your .env file
-BRAND_NAME=My Company Returns
-BRAND_TAGLINE=Easy Returns, Happy Customers
-BRAND_LOGO_URL=/static/logo.svg
-BRAND_PRIMARY_COLOR=#0078d4
-BRAND_FAVICON_URL=/static/favicon.ico
-```
-
-### CSS Customization
-
-Edit `static/branding.css` for deeper styling:
-
-```css
-:root {
-    --brand-primary: #0078d4;        /* Primary brand color */
-    --header-gradient-start: #0078d4; /* Header gradient */
-    --header-gradient-end: #005a9e;
-    --color-success: #28a745;         /* Success/complete color */
-    --color-danger: #dc3545;          /* Delete/error color */
-}
-```
-
-### Custom Logo
-
-Replace `static/logo.svg` with your own logo file (SVG, PNG, or any web format).
+8. **Open your browser**
+   Navigate to `http://localhost:3000`
 
 ## 💬 Using the Order Returns Assistant
 
@@ -260,11 +318,16 @@ The ChatKit Order Returns app understands natural language commands:
 
 ```
 You: I need to return an item from my recent order
-Assistant: I'd be happy to help you with a return! Let me look up your recent orders.
+Assistant: I'd be happy to help you with a return! Could you please provide your email address or name so I can look up your account?
+
+You: I'm jane.smith@email.com
+Assistant: Thanks, Jane! I found your account. Let me pull up your recent orders.
+[Shows customer card with account details]
 [Shows order widget with order details]
 
 You: I want to return the wireless headphones
 Assistant: I can help you return the Wireless Headphones. What's the reason for your return?
+[Shows return reasons widget]
 • Defective/Damaged
 • Wrong Item Received
 • Changed My Mind
@@ -276,78 +339,22 @@ Assistant: I'm sorry to hear that! Since this is a defective item, you qualify f
 ✓ Free return shipping
 ✓ Express processing
 
+[Shows resolution options widget]
 [Shows return confirmation widget with shipping label option]
 ```
 
 ## 🔄 Dual-Input Architecture: Text + Widget
 
-A key feature of this ChatKit implementation is supporting **both widget button clicks AND natural language text input**, with both converging into the same processing flow.
+This application supports **both widget button clicks AND natural language text input**, with both converging into the same processing flow.
 
-### How It Works
+| Input Mode | How It Works | Response Time |
+|------------|--------------|---------------|
+| **Widget Click** | Direct action execution—no LLM call needed | ⚡ Immediate |
+| **Text Input** | Agent interprets intent via LLM, then executes | 🔄 Slightly longer |
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         USER INPUT                                      │
-│                                                                         │
-│   ┌─────────────────┐              ┌─────────────────┐                  │
-│   │  Widget Click   │              │   Text Input    │                  │
-│   │  [Full Refund]  │              │ "I want a full  │                  │
-│   │     button      │              │    refund"      │                  │
-│   └────────┬────────┘              └────────┬────────┘                  │
-│            │                                │                           │
-│            ▼                                ▼                           │
-│   ┌─────────────────┐              ┌─────────────────┐                  │
-│   │   action()      │              │   Agent/LLM     │                  │
-│   │ Direct mapping  │              │  Interprets NL  │                  │
-│   │ from payload    │              │  + uses tools   │                  │
-│   └────────┬────────┘              └────────┬────────┘                  │
-│            │                                │                           │
-│            └────────────┬───────────────────┘                           │
-│                         ▼                                               │
-│            ┌─────────────────────────┐                                  │
-│            │    SESSION CONTEXT      │                                  │
-│            │  (Unified State Store)  │                                  │
-│            │                         │                                  │
-│            │  resolution: FULL_REFUND│  ← Both paths update this!       │
-│            └────────────┬────────────┘                                  │
-│                         ▼                                               │
-│            ┌─────────────────────────┐                                  │
-│            │   Next Step / Finalize  │                                  │
-│            └─────────────────────────┘                                  │
-└─────────────────────────────────────────────────────────────────────────┘
-```
+Both modes converge to the **same application state**, ensuring a consistent experience regardless of how the user interacts.
 
-### Key Components
-
-| Component | Purpose |
-|-----------|---------|
-| **`action()` method** | Handles widget button clicks directly (no LLM) |
-| **`respond()` method** | Routes text input through the Agent/LLM |
-| **`set_user_selection` tool** | Agent tool to record typed selections |
-| **Session Context** | Shared state that both paths write to |
-| **`finalize_return_from_session`** | Creates return using session data |
-
-### Examples
-
-**Widget Button Click:**
-```
-User clicks [Full Refund] button
-  → action() receives {type: "select_resolution", payload: {resolution: "FULL_REFUND"}}
-  → Stores in session: resolution = "FULL_REFUND"
-  → Shows shipping widget
-```
-
-**Natural Language Input:**
-```
-User types: "I would like a full refund please"
-  → respond() sends to Agent with session context
-  → Agent recognizes intent, calls set_user_selection(type="resolution", code="FULL_REFUND")
-  → Stores in session: resolution = "FULL_REFUND"  
-  → Agent calls get_shipping_options
-  → Shows shipping widget
-```
-
-Both paths result in the same outcome! For detailed documentation, see [ARCHITECTURE.md](ARCHITECTURE.md#dual-input-architecture-text--widget-convergence).
+📖 **[Read the full Dual-Input Architecture documentation →](docs/DUAL_INPUT_ARCHITECTURE.md)**
 
 ## ☁️ Deploy to Azure Container Apps
 
@@ -625,7 +632,9 @@ This project uses **Azure OpenAI** instead of the standard OpenAI endpoints. Her
 2. **Model Wrapper** (`base_server.py`):
    ```python
    # Wraps Azure client for OpenAI Agents SDK
-   azure_model = OpenAIChatCompletionsModel(
+   from agents.models.openai_responses import OpenAIResponsesModel
+   
+   azure_model = OpenAIResponsesModel(
        model=settings.azure_openai_deployment,  # Deployment name, not model name
        openai_client=client,
    )

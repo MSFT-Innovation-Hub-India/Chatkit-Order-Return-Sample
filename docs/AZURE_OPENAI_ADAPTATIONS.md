@@ -77,7 +77,8 @@ class StarterChatServer(ChatKitServer[dict[str, Any]]):
 ```python
 # From: this project's base_server.py
 
-from agents import Agent, Runner, OpenAIChatCompletionsModel, RunConfig  # ← Extra imports!
+from agents import Agent, Runner, RunConfig
+from agents.models.openai_responses import OpenAIResponsesModel  # ← Azure-specific!
 from azure_client import client_manager  # ← Azure-specific!
 
 class BaseChatKitServer(ChatKitServer):
@@ -86,7 +87,7 @@ class BaseChatKitServer(ChatKitServer):
         client = await client_manager.get_client()
         
         # AZURE-SPECIFIC: Wrap in model class
-        azure_model = OpenAIChatCompletionsModel(
+        azure_model = OpenAIResponsesModel(
             model=settings.azure_openai_deployment,  # ← Deployment name
             openai_client=client,                    # ← Azure client
         )
@@ -111,10 +112,10 @@ class BaseChatKitServer(ChatKitServer):
 |--------|---------------------------|----------------------------|
 | **Authentication** | `OPENAI_API_KEY` env var | `DefaultAzureCredential` |
 | **Client creation** | Automatic (SDK default) | Manual (`AsyncAzureOpenAI`) |
-| **Model reference** | `model="gpt-4.1-mini"` on Agent | `OpenAIChatCompletionsModel` wrapper |
+| **Model reference** | `model="gpt-4.1-mini"` on Agent | `OpenAIResponsesModel` wrapper |
 | **Runner call** | `Runner.run_streamed(agent, input, context)` | `Runner.run_streamed(agent, input, context, run_config=RunConfig(model=...))` |
 | **Extra files** | None | `azure_client.py` |
-| **Extra imports** | None | `OpenAIChatCompletionsModel`, `RunConfig` |
+| **Extra imports** | None | `OpenAIResponsesModel`, `RunConfig` |
 
 ---
 
@@ -180,7 +181,7 @@ class BaseChatKitServer(ChatKitServer):
 │  │  client = await client_manager.get_client()  # ← Azure client mgr   │   │
 │  │                                                                     │   │
 │  │  # Create the Azure OpenAI model wrapper                            │   │
-│  │  azure_model = OpenAIChatCompletionsModel(                          │   │
+│  │  azure_model = OpenAIResponsesModel(                               │   │
 │  │      model=settings.azure_openai_deployment,  # ← Deployment name   │   │
 │  │      openai_client=client,                    # ← Azure client      │   │
 │  │  )                                                                  │   │
@@ -216,10 +217,10 @@ class BaseChatKitServer(ChatKitServer):
 
 **Why it exists:**
 - The `agents` SDK (OpenAI's Agents SDK) defaults to using `OPENAI_API_KEY`
-- For Azure, we must explicitly create an `OpenAIChatCompletionsModel` with our Azure client
+- For Azure, we must explicitly create an `OpenAIResponsesModel` with our Azure client
 - `RunConfig(model=azure_model)` overrides the default model
 
-**With OpenAI directly:** Remove `azure_client` import, remove `OpenAIChatCompletionsModel` wrapping, let the Runner use its default OpenAI client.
+**With OpenAI directly:** Remove `azure_client` import, remove `OpenAIResponsesModel` wrapping, let the Runner use its default OpenAI client.
 
 ---
 
@@ -321,7 +322,7 @@ class BaseChatKitServer(ChatKitServer):
 │  │     (gpt-4o)      │                                                      │
 │  └───────────────────┘                                                      │
 │                                                                             │
-│  NO azure_client.py, NO OpenAIChatCompletionsModel wrapper                  │
+│  NO azure_client.py, NO OpenAIResponsesModel wrapper                       │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -335,7 +336,7 @@ class BaseChatKitServer(ChatKitServer):
 | `azure_client.py` | ✅ **Required** | ❌ **Delete** | Azure AD auth, token provider |
 | `base_server.py` | ✅ Required (Azure model wrapping) | ⚠️ **Simplify** | Remove Azure client/model code, keep abstraction |
 | `config.py` Azure settings | ✅ Required | ❌ **Replace** | Use `OPENAI_API_KEY` instead |
-| `OpenAIChatCompletionsModel` | ✅ Required | ❌ **Remove** | Only needed to inject Azure client |
+| `OpenAIResponsesModel` | ✅ Required | ❌ **Remove** | Only needed to inject Azure client |
 | `RunConfig(model=...)` | ✅ Required | ❌ **Remove** | Agents SDK uses default OpenAI |
 | `DefaultAzureCredential` | ✅ Required | ❌ **Remove** | Azure-specific auth |
 | **ChatKitServer** | ✅ Required | ✅ Required | Core ChatKit functionality |
@@ -367,7 +368,7 @@ class BaseChatKitServer(ChatKitServer):
    ```python
    # BEFORE (Azure):
    client = await client_manager.get_client()
-   azure_model = OpenAIChatCompletionsModel(
+   azure_model = OpenAIResponsesModel(
        model=settings.azure_openai_deployment,
        openai_client=client,
    )
@@ -386,7 +387,8 @@ class BaseChatKitServer(ChatKitServer):
 4. **Remove** imports:
    ```python
    # Remove from base_server.py:
-   from agents import OpenAIChatCompletionsModel, RunConfig
+   from agents.models.openai_responses import OpenAIResponsesModel
+   from agents import RunConfig
    from azure_client import client_manager
    ```
 
@@ -443,7 +445,7 @@ uvicorn
 This project adds **three main components** to support Azure OpenAI:
 
 1. **`azure_client.py`** - Manages Azure AD authentication and `AsyncAzureOpenAI` client
-2. **Azure-specific code in `base_server.py`** - Wraps the client in `OpenAIChatCompletionsModel` and passes to `RunConfig`
+2. **Azure-specific code in `base_server.py`** - Wraps the client in `OpenAIResponsesModel` and passes to `RunConfig`
 3. **Azure settings in `config.py`** - Endpoint, deployment name, API version
 
 **With OpenAI directly**, you would:
