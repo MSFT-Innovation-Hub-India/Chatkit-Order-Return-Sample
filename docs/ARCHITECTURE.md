@@ -2,9 +2,9 @@
 
 This document explains the modular architecture of this ChatKit sample project, the role of the ChatKit server, and provides a guide for implementing use cases.
 
-> 📊 **Visual Diagrams**: For class diagrams and sequence diagrams, see [docs/DIAGRAMS.md](docs/DIAGRAMS.md)
+> 📊 **Visual Diagrams**: For class diagrams and sequence diagrams, see [DIAGRAMS.md](DIAGRAMS.md)
 > 
-> 🔐 **Authentication**: For user login, session management, and thread isolation, see [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md)
+> 🔐 **Authentication**: For user login, session management, and thread isolation, see [AUTHENTICATION.md](AUTHENTICATION.md)
 
 ## Table of Contents
 
@@ -589,14 +589,14 @@ This project uses a **practical, pattern-based architecture** rather than abstra
 │                              │                                              │
 │              ┌───────────────┼───────────────┐                              │
 │              ▼               ▼               ▼                              │
-│  ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐               │
-│  │                 │ │                 │ │                 │               │
-│  │  tools.py       │ │  cosmos_client  │ │  widgets.py     │               │
-│  │                 │ │                 │ │                 │               │
-│  │  Agent function │ │  Data access    │ │  Widget builders│               │
-│  │  tools with     │ │  Cosmos DB      │ │  for rich UI    │               │
-│  │  business logic │ │  queries        │ │  components     │               │
-│  └─────────────────┘ └─────────────────┘ └─────────────────┘               │
+│  ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐                │
+│  │                 │ │                 │ │                 │                │
+│  │  tools.py       │ │  cosmos_client  │ │  widgets.py     │                │
+│  │                 │ │                 │ │                 │                │
+│  │  Agent function │ │  Data access    │ │  Widget builders│                │
+│  │  tools with     │ │  Cosmos DB      │ │  for rich UI    │                │
+│  │  business logic │ │  queries        │ │  components     │                │
+│  └─────────────────┘ └─────────────────┘ └─────────────────┘                │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -626,7 +626,7 @@ use_cases/retail/        # Reference implementation
 
 ### Adding New Use Cases
 
-See **[docs/ADDING_USE_CASES.md](docs/ADDING_USE_CASES.md)** for a step-by-step guide to creating new domains (healthcare, banking, travel, etc.).
+See **[ADDING_USE_CASES.md](ADDING_USE_CASES.md)** for a step-by-step guide to creating new domains (healthcare, banking, travel, etc.).
 
 The approach is simple: **copy the retail folder and customize it** for your domain.
 
@@ -897,25 +897,33 @@ if (!threadId) {
 
 ## Core Components
 
-### 1. Shared Utilities (`core/`)
+### 1. Shared Utilities (Root Level)
 
-The `core/` module contains reusable utilities:
+The following reusable utilities are at the project root:
 
 | File | Purpose |
 |------|---------|
 | `workflow_status.py` | ChatGPT-style tool execution status streaming |
+| `base_server.py` | Reusable base server with Azure OpenAI integration |
+| `azure_client.py` | Azure OpenAI client management |
+| `config.py` | Environment configuration |
 
 **Tool Execution Status Pattern:**
 
 ```python
-from workflow_status import stream_tool_status, finalize_workflow
+from workflow_status import create_tool_status_hooks
+from use_cases.retail.tool_status import RETAIL_TOOL_STATUS_MESSAGES
 
-# In your respond() method, stream status updates during tool execution
-async for event in stream_tool_status(runner, tool_status_map, workflow, ...):
-    yield event
+# In your respond() method, create hooks for tool status updates
+hooks, tracker = create_tool_status_hooks(
+    agent_context,
+    tool_messages=RETAIL_TOOL_STATUS_MESSAGES,
+    workflow_summary="Processing your request...",
+    workflow_icon="sparkle"
+)
 
-# Finalize the workflow when complete
-await finalize_workflow(workflow)
+# Pass hooks to the Runner for automatic status streaming
+runner = Runner.run_streamed(agent, input=messages, hooks=hooks)
 ```
 
 Each domain provides its own `tool_status.py` with status messages.
@@ -1817,7 +1825,7 @@ class RetailChatKitServer(BaseChatKitServer):
 
 ## Creating a New Use Case
 
-For a complete step-by-step guide, see **[docs/ADDING_USE_CASES.md](docs/ADDING_USE_CASES.md)**.
+For a complete step-by-step guide, see **[ADDING_USE_CASES.md](ADDING_USE_CASES.md)**.
 
 ### Quick Overview
 
@@ -1883,7 +1891,7 @@ use_cases/
 
 ### Example Domains
 
-See [docs/ADDING_USE_CASES.md](docs/ADDING_USE_CASES.md) for examples:
+See [ADDING_USE_CASES.md](ADDING_USE_CASES.md) for examples:
 - **Healthcare**: Appointment scheduling, patient records
 - **Banking**: Transaction disputes, account management  
 - **Travel**: Booking management, cancellations

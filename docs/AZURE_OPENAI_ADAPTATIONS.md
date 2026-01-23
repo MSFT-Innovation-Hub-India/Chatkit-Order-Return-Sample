@@ -124,13 +124,13 @@ class BaseChatKitServer(ChatKitServer):
 ### 1. `azure_client.py` — **AZURE-SPECIFIC (Would be unnecessary with OpenAI)**
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
+┌────────────────────────────────────────────────────────────────────────────┐
 │  azure_client.py                                      AZURE-ONLY FILE      │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
+├────────────────────────────────────────────────────────────────────────────┤
+│                                                                            │
 │  PURPOSE: Create and manage AsyncAzureOpenAI client with Azure AD auth     │
-│                                                                             │
-│  KEY AZURE-SPECIFIC CODE:                                                   │
+│                                                                            │
+│  KEY AZURE-SPECIFIC CODE:                                                  │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
 │  │  from openai import AsyncAzureOpenAI                                │   │
 │  │  from azure.identity import DefaultAzureCredential                  │   │
@@ -139,7 +139,7 @@ class BaseChatKitServer(ChatKitServer):
 │  │  credential = DefaultAzureCredential()                              │   │
 │  │  token_provider = get_bearer_token_provider(                        │   │
 │  │      credential,                                                    │   │
-│  │      "https://cognitiveservices.azure.com/.default"                │   │
+│  │      "https://cognitiveservices.azure.com/.default"                 │   │
 │  │  )                                                                  │   │
 │  │                                                                     │   │
 │  │  # Azure-specific client                                            │   │
@@ -149,14 +149,14 @@ class BaseChatKitServer(ChatKitServer):
 │  │      api_version="2025-01-01-preview",  # ← Azure API versioning    │   │
 │  │  )                                                                  │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
-│                                                                             │
+│                                                                            │
 │  WITH OPENAI DIRECTLY: This entire file would be replaced by:              │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
 │  │  from openai import AsyncOpenAI                                     │   │
 │  │  client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])         │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
 ```
 
 **Why it exists:**
@@ -171,17 +171,17 @@ class BaseChatKitServer(ChatKitServer):
 ### 2. `base_server.py` — **CONTAINS AZURE-SPECIFIC MODEL WRAPPING**
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
+┌────────────────────────────────────────────────────────────────────────────┐
 │  base_server.py                                       MIXED (Azure + Core) │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
+├────────────────────────────────────────────────────────────────────────────┤
+│                                                                            │
 │  AZURE-SPECIFIC SECTION (respond method, lines 140-175):                   │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
 │  │  # Get Azure OpenAI client                                          │   │
 │  │  client = await client_manager.get_client()  # ← Azure client mgr   │   │
 │  │                                                                     │   │
 │  │  # Create the Azure OpenAI model wrapper                            │   │
-│  │  azure_model = OpenAIResponsesModel(                               │   │
+│  │  azure_model = OpenAIResponsesModel(                                │   │
 │  │      model=settings.azure_openai_deployment,  # ← Deployment name   │   │
 │  │      openai_client=client,                    # ← Azure client      │   │
 │  │  )                                                                  │   │
@@ -194,7 +194,7 @@ class BaseChatKitServer(ChatKitServer):
 │  │      run_config=RunConfig(model=azure_model), # ← Override model    │   │
 │  │  )                                                                  │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
-│                                                                             │
+│                                                                            │
 │  WITH OPENAI DIRECTLY: Replace with:                                       │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
 │  │  # No client manager needed, no model override                      │   │
@@ -205,14 +205,14 @@ class BaseChatKitServer(ChatKitServer):
 │  │      # Uses OPENAI_API_KEY env var automatically                    │   │
 │  │  )                                                                  │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
-│                                                                             │
+│                                                                            │
 │  The base server pattern itself IS still useful for:                       │
 │  • Agent abstraction (get_agent method)                                    │
 │  • Action handling                                                         │
 │  • Post-respond hooks                                                      │
 │  But the Azure-specific client/model code would be removed.                │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
 ```
 
 **Why it exists:**
@@ -227,10 +227,10 @@ class BaseChatKitServer(ChatKitServer):
 ### 3. `config.py` — **CONTAINS AZURE-SPECIFIC SETTINGS**
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
+┌────────────────────────────────────────────────────────────────────────────┐
 │  config.py                                            MIXED (Azure + App)  │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
+├────────────────────────────────────────────────────────────────────────────┤
+│                                                                            │
 │  AZURE-SPECIFIC SETTINGS:                                                  │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
 │  │  # Azure OpenAI Configuration                                       │   │
@@ -238,14 +238,14 @@ class BaseChatKitServer(ChatKitServer):
 │  │  azure_openai_deployment: str     # ← Deployment name (not model)   │   │
 │  │  azure_openai_api_version: str    # ← Azure versioning              │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
-│                                                                             │
+│                                                                            │
 │  WITH OPENAI DIRECTLY: Replace with:                                       │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
 │  │  openai_api_key: str              # ← Just the API key              │   │
 │  │  openai_model: str = "gpt-4o"     # ← Model name                    │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -268,10 +268,10 @@ class BaseChatKitServer(ChatKitServer):
 │  │   respond()       │                                                      │
 │  └─────────┬─────────┘                                                      │
 │            ▼                                                                │
-│  ┌───────────────────┐      ┌───────────────────┐                          │
-│  │ azure_client.py   │ ──►  │ DefaultAzure      │  ← Azure AD auth         │
-│  │ client_manager    │      │ Credential        │                          │
-│  └─────────┬─────────┘      └───────────────────┘                          │
+│  ┌───────────────────┐      ┌───────────────────┐                           │
+│  │ azure_client.py   │ ──►  │ DefaultAzure      │  ← Azure AD auth          │
+│  │ client_manager    │      │ Credential        │                           │
+│  └─────────┬─────────┘      └───────────────────┘                           │
 │            ▼                                                                │
 │  ┌───────────────────┐                                                      │
 │  │ AsyncAzureOpenAI  │  ← Azure-specific client                             │
@@ -279,8 +279,8 @@ class BaseChatKitServer(ChatKitServer):
 │  └─────────┬─────────┘                                                      │
 │            ▼                                                                │
 │  ┌───────────────────┐                                                      │
-│  │ OpenAIChat        │  ← Wrapper to use Azure client with Agents SDK       │
-│  │ CompletionsModel  │                                                      │
+│  │ OpenAIResponses   │  ← Wrapper to use Azure client with Agents SDK       │
+│  │ Model             │                                                      │
 │  └─────────┬─────────┘                                                      │
 │            ▼                                                                │
 │  ┌───────────────────┐                                                      │
@@ -322,7 +322,7 @@ class BaseChatKitServer(ChatKitServer):
 │  │     (gpt-4o)      │                                                      │
 │  └───────────────────┘                                                      │
 │                                                                             │
-│  NO azure_client.py, NO OpenAIResponsesModel wrapper                       │
+│  NO azure_client.py, NO OpenAIResponsesModel wrapper                        │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -743,23 +743,15 @@ When you call get_return_reasons, get_resolution_options, or get_shipping_option
 | `azure_client.py` | Azure AD authentication, `AsyncAzureOpenAI` client |
 | `base_server.py` | Azure model wrapping, conversation history, `RunConfig` override |
 | `config.py` | Azure OpenAI endpoint, deployment, API version settings |
-| **Core Framework (Extensibility)** | |
-| `core/domain.py` | PolicyEngine, DomainService base classes (pure logic) |
-| `core/data.py` | Repository pattern for data access |
-| `core/presentation.py` | WidgetComposer, WidgetTheme base classes |
-| `core/orchestration.py` | UseCaseServer base class extending ChatKitServer |
-| `core/session.py` | SessionContext, SessionManager for state tracking |
+| `workflow_status.py` | ChatGPT-style tool execution status streaming |
 | **Retail Use Case** | |
 | `use_cases/retail/server.py` | Retail ChatKit server with dual-input handling |
-| `use_cases/retail/domain/policies.py` | ReturnEligibilityPolicy, RefundPolicy |
-| `use_cases/retail/presentation/composer.py` | ReturnWidgetComposer |
 | `use_cases/retail/tools.py` | Business logic tools for returns processing |
+| `use_cases/retail/tool_status.py` | Domain-specific status messages for workflow |
+| `use_cases/retail/widgets.py` | Widget builder functions for retail UI |
 | `use_cases/retail/cosmos_client.py` | Cosmos DB client for data persistence |
-| **Healthcare Use Case (Example)** | |
-| `use_cases/healthcare/server.py` | Example server demonstrating extensibility |
-| `use_cases/healthcare/domain/policies.py` | SchedulingRules, CancellationPolicy |
 
 ---
 
 *Document created: January 18, 2026*
-*Last updated: January 22, 2026 - Added layered architecture components*
+*Last updated: January 22, 2026 - Updated to reflect actual project structure*

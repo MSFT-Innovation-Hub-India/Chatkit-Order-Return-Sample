@@ -28,7 +28,6 @@ This application provides a personalized experience with the following user-faci
 
 ### Customer Profile
 - **View Customer Card**: Ask the agent "show my customer card" or "show my profile" to see your membership details
-- **Auto-Identification**: Once logged in, the agent automatically recognizes you—no need to provide your email again
 - **Membership Benefits**: See your tier status and associated perks (e.g., Platinum members get fee-free returns)
 
 ### Conversation Management
@@ -40,18 +39,17 @@ This application provides a personalized experience with the following user-faci
 ### Smart Agent Behavior
 - **Contextual Greetings**: The agent greets you by name and responds naturally to casual messages
 - **Intent Detection**: The agent waits for you to indicate what you need before showing widgets
-- **Return Completion Awareness**: After completing a return, the agent acknowledges success without repeating the flow
 
 ### Extensible Architecture
 
-This solution follows a **layered, extensible architecture** that separates business logic from infrastructure. While this sample demonstrates a retail order returns use case, the same patterns can be adapted for other scenarios:
+This solution follows a **practical, extensible architecture** that separates business logic from infrastructure. While this sample demonstrates a retail order returns use case, the same patterns can be adapted for other scenarios:
 
 - **Healthcare**: Appointment scheduling, prescription refills, patient inquiries
 - **Banking**: Account inquiries, transaction disputes, loan applications
 - **Travel**: Booking management, itinerary changes, loyalty programs
 - **HR/Internal**: Employee onboarding, IT helpdesk, policy questions
 
-See the `core/` framework module and `use_cases/healthcare/` skeleton for guidance on creating new use cases.
+See [docs/ADDING_USE_CASES.md](docs/ADDING_USE_CASES.md) for guidance on creating new use cases by copying the `use_cases/retail/` reference implementation.
 
 ## ⚡ Technical Capabilities
 
@@ -70,16 +68,23 @@ Users can **interchangeably** use either input mode at any point in the conversa
 
 Both modes converge to the **same application state**, ensuring a consistent experience regardless of how the user interacts.
 
-### Widget-Driven Flow Navigation
+#### Key Components
+
+| Component | Purpose |
+|-----------|---------|
+| **`action()` method** | Handles widget button clicks directly (no LLM) |
+| **`respond()` method** | Routes text input through the Agent/LLM |
+| **`set_user_selection` tool** | Agent tool to record typed selections |
+| **Session Context** | Shared state that both paths write to |
+
+#### Widget-Driven Flow (Fast Path)
 
 When a user clicks a widget button (e.g., selects a return reason):
 1. The click triggers a **direct tool call**—bypassing the LLM entirely
 2. The session state is updated immediately
 3. The **next widget in the workflow** is automatically presented
 
-This creates a fast, guided experience where each action seamlessly leads to the next step.
-
-### Text Input Convergence
+#### Text Input Flow (LLM Path)
 
 When a user types instead of clicking (e.g., "I want a full refund"):
 1. The text is sent to the **Agent/LLM** for interpretation
@@ -87,7 +92,9 @@ When a user types instead of clicking (e.g., "I want a full refund"):
 3. The session state converges to the **same state** as the widget path
 4. The next widget is presented
 
-> 💡 **Performance Note**: Widget clicks are faster since they skip the LLM inference step, but both paths result in identical outcomes.
+> 💡 **Performance Note**: Widget clicks are faster (~50-100ms) since they skip the LLM inference step, but both paths result in identical outcomes.
+
+📖 **[Full implementation details with code examples →](docs/DUAL_INPUT_ARCHITECTURE.md)**
 
 ### Real-Time Tool Execution Status
 
@@ -107,6 +114,8 @@ This provides transparency into what the agent is doing, especially when:
 - Creating return requests
 
 The status indicators use ChatKit's **Workflow API** and appear as collapsible progress sections.
+
+📖 **[Implementation guide for tool execution status →](docs/WORKFLOW_STATUS.md)**
 
 ### Extensible Tool Architecture
 
@@ -201,7 +210,7 @@ ChatKit uses a **Server-Driven UI** pattern:
 3. **ChatKit React** receives JSON and renders using official components
 4. **Browser** displays the interactive widget
 
-For detailed architecture, deployment patterns, and customization, see [ARCHITECTURE.md](ARCHITECTURE.md).
+For detailed architecture, deployment patterns, and customization, see [ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## 📁 Project Structure
 
@@ -215,15 +224,18 @@ chatkit-order-returns/
 ├── requirements.txt         # Python dependencies
 ├── Dockerfile               # Container build configuration
 ├── azure.yaml               # Azure Developer CLI configuration
-├── ARCHITECTURE.md          # Detailed architecture documentation
+├── README.md                # This file
 ├── .env.example             # Environment variables template
 │
 ├── docs/                    # Documentation
+│   ├── ARCHITECTURE.md      # Detailed architecture documentation
 │   ├── ADDING_USE_CASES.md  # Guide to add new domains (healthcare, etc.)
 │   ├── AUTHENTICATION.md    # User login, session management, thread isolation
-│   ├── WORKFLOW_STATUS.md   # Tool execution status guide
+│   ├── AZURE_OPENAI_ADAPTATIONS.md # Azure OpenAI setup
+│   ├── DIAGRAMS.md          # Mermaid architecture diagrams
 │   ├── DUAL_INPUT_ARCHITECTURE.md  # Widget + text input docs
-│   └── AZURE_OPENAI_ADAPTATIONS.md # Azure OpenAI setup
+│   ├── INDUSTRY_USE_CASES.md # Example use cases (healthcare, banking, etc.)
+│   └── WORKFLOW_STATUS.md   # Tool execution status guide
 │
 ├── frontend/                # React frontend (official ChatKit UI)
 │   ├── package.json         # Node.js dependencies
@@ -383,19 +395,6 @@ Assistant: I'm sorry to hear that! Since this is a defective item, you qualify f
 [Shows return confirmation widget with shipping label option]
 ```
 
-## 🔄 Dual-Input Architecture: Text + Widget
-
-This application supports **both widget button clicks AND natural language text input**, with both converging into the same processing flow.
-
-| Input Mode | How It Works | Response Time |
-|------------|--------------|---------------|
-| **Widget Click** | Direct action execution—no LLM call needed | ⚡ Immediate |
-| **Text Input** | Agent interprets intent via LLM, then executes | 🔄 Slightly longer |
-
-Both modes converge to the **same application state**, ensuring a consistent experience regardless of how the user interacts.
-
-📖 **[Read the full Dual-Input Architecture documentation →](docs/DUAL_INPUT_ARCHITECTURE.md)**
-
 ## ☁️ Deploy to Azure Container Apps
 
 ### Using Azure Developer CLI (Recommended)
@@ -484,6 +483,8 @@ az role assignment create \
   --scope /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<aoai-resource>
 ```
 
+📖 **[Full authentication documentation →](docs/AUTHENTICATION.md)**
+
 ## 🏗️ Architecture
 
 ```
@@ -526,6 +527,8 @@ az role assignment create \
 | **Cosmos DB Store** | Persists threads, messages, orders, and return data |
 | **Retail Tools** | Function tools for order lookup, returns, tracking, and refunds |
 
+📖 **[Detailed architecture diagrams (Mermaid) →](docs/DIAGRAMS.md)**
+
 ## 🔧 Configuration
 
 | Environment Variable | Description | Default |
@@ -535,14 +538,12 @@ az role assignment create \
 | `AZURE_OPENAI_API_VERSION` | API version | `2025-01-01-preview` |
 | `COSMOS_ENDPOINT` | Azure Cosmos DB endpoint URL | Required |
 | `COSMOS_DATABASE` | Cosmos DB database name | `db001` |
+| `POLICY_DOCS_VECTOR_STORE_ID` | Azure OpenAI vector store ID for policy RAG | Optional |
 | `APP_HOST` | Application bind host | `0.0.0.0` |
 | `APP_PORT` | Application port | `8000` |
 | `LOG_LEVEL` | Logging level | `INFO` |
-| `BRAND_NAME` | App title in header | `Order Returns` |
-| `BRAND_TAGLINE` | Subtitle in header | `AI-Powered Returns Management` |
-| `BRAND_LOGO_URL` | Logo image URL | `/static/logo.png` |
-| `BRAND_PRIMARY_COLOR` | Primary brand color (hex) | `#0078d4` |
-| `BRAND_FAVICON_URL` | Favicon URL | `/static/favicon.ico` |
+
+> **Branding variables** (`BRAND_NAME`, `BRAND_TAGLINE`, `BRAND_LOGO_URL`, etc.) are documented in the [Branding & Customization](#-branding--customization) section below.
 
 ## 🎨 Branding & Customization
 
@@ -685,6 +686,8 @@ This project uses **Azure OpenAI** instead of the standard OpenAI endpoints. Her
    - Azure-hosted: Uses Managed Identity automatically
    - No API keys required in code
 
+📖 **[Complete Azure OpenAI adaptation guide →](docs/AZURE_OPENAI_ADAPTATIONS.md)**
+
 ### Environment Variables
 
 ```env
@@ -712,10 +715,6 @@ This project is designed to be extended for other industries and scenarios. The 
 
 ### Adding a New Domain
 
-For a step-by-step guide, see **[docs/ADDING_USE_CASES.md](docs/ADDING_USE_CASES.md)**.
-
-**Quick overview:**
-
 1. **Copy the retail folder structure:**
    ```
    use_cases/your_domain/
@@ -732,12 +731,28 @@ For a step-by-step guide, see **[docs/ADDING_USE_CASES.md](docs/ADDING_USE_CASES
    - Add domain-specific widgets
    - Define tool status messages
 
-3. **Real extensibility via `core/workflow_status.py`:**
-   - Provides ChatGPT-style progress indicators
-   - Your `tool_status.py` provides domain-specific messages
-   - See [docs/WORKFLOW_STATUS.md](docs/WORKFLOW_STATUS.md) for details
+3. **Register in `main.py`** to activate your use case
 
-**Example domains:** Healthcare (appointments), Banking (transactions), Travel (bookings), HR (employee onboarding)
+### What's Reusable
+
+| Module | Purpose |
+|--------|---------|
+| `workflow_status.py` | ChatGPT-style progress indicators—pass your domain's tool_status messages |
+| `wrap_for_hosted_tools()` | Status for FileSearchTool, WebSearchTool |
+| `cosmos_store.py` | Thread persistence to Azure Cosmos DB |
+
+### Example Domains
+
+| Domain | Tools | Widgets |
+|--------|-------|---------|
+| **Healthcare** | lookup_patient, book_appointment | Patient card, appointment slots |
+| **Banking** | get_account, transfer_funds | Account summary, transaction list |
+| **Travel** | search_flights, book_hotel | Flight options, hotel cards |
+| **HR** | lookup_employee, submit_request | Employee card, request form |
+
+📖 **[Detailed industry use case examples →](docs/INDUSTRY_USE_CASES.md)**
+
+📖 **[Full step-by-step guide with code examples →](docs/ADDING_USE_CASES.md)**
 
 ## 🤝 Contributing
 

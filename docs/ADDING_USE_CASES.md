@@ -107,6 +107,10 @@ class HealthcareChatKitServer(ChatKitServer):
             hooks=hooks,
         )
         
+        # Optional: wrap for hosted tools (FileSearchTool, WebSearchTool)
+        # from workflow_status import wrap_for_hosted_tools
+        # result = wrap_for_hosted_tools(result, tracker)
+        
         async for event in stream_agent_response(agent_context, result):
             yield event
         
@@ -122,11 +126,12 @@ from use_cases.healthcare import HealthcareChatKitServer
 chatkit_server = HealthcareChatKitServer(store=cosmos_store)
 ```
 
-## What's Reusable from `core/`
+## What's Reusable
 
 | Module | Purpose | How to Use |
 |--------|---------|------------|
 | `workflow_status.py` | ChatGPT-style progress indicators | Pass your domain's tool_status messages |
+| `wrap_for_hosted_tools()` | Status for FileSearchTool, WebSearchTool | Wrap result before streaming |
 
 ## Key Patterns from Retail
 

@@ -30,8 +30,8 @@ AI: "I'll log that defect. Please confirm the details:"
 ┌─────────────────────────────────────────────────────────┐
 │ 🔍 Defect Report                          [Draft]       │
 ├─────────────────────────────────────────────────────────┤
-│ Line: [Line 3 ▼]     Batch: [2847     ]                │
-│ Defect Type: [Scratch ▼]  Severity: [● Minor ○ Major]  │
+│ Line: [Line 3 ▼]     Batch: [2847     ]                 │
+│ Defect Type: [Scratch ▼]  Severity: [● Minor ○ Major]   │
 │ Photo: [📷 Capture]                                     │
 │ Root Cause: [_______________]                           │
 │                                                         │
@@ -72,28 +72,28 @@ Agent: "Customer Jane calling about order from last week"
 AI: "I found 2 recent orders for Jane Smith:"
 
 ┌─────────────────────────────────────────────────────────┐
-│ 📦 Order #ORD-78234              Delivered Dec 15      │
+│ 📦 Order #ORD-78234              Delivered Dec 15       │
 ├─────────────────────────────────────────────────────────┤
-│ • Blue Widget (x2)              $49.99                 │
-│ • Premium Case                  $19.99                 │
+│ • Blue Widget (x2)              $49.99                  │
+│ • Premium Case                  $19.99                  │
 │ Subtotal: $69.98  |  Status: ✅ Delivered              │
 │                                                         │
-│ [Start Return] [Track Package] [Apply Discount] [Notes]│
+│ [Start Return] [Track Package] [Apply Discount] [Notes] │
 └─────────────────────────────────────────────────────────┘
 
 Agent: "She wants to return the case, it was damaged"
 
 AI: *Shows return widget*
-┌─────────────────────────────────────────────────────────┐
-│ ↩️ Return Request                                       │
-├─────────────────────────────────────────────────────────┤
+┌────────────────────────────────────────────────────────┐
+│ ↩️ Return Request                                      │
+├────────────────────────────────────────────────────────┤
 │ Item: Premium Case ($19.99)                            │
 │ Reason: [Damaged/Defective ▼]                          │
 │ Resolution: ● Refund  ○ Exchange  ○ Store Credit       │
 │ Shipping: ● Prepaid Label  ○ Customer Drop-off         │
-│                                                         │
+│                                                        │
 │ [Process Return $19.99]  [Offer 20% Keep Discount]     │
-└─────────────────────────────────────────────────────────┘
+└────────────────────────────────────────────────────────┘
 ```
 
 ### Why It's Compelling
@@ -123,18 +123,18 @@ Employee: "I need to take Friday off for a doctor's appointment"
 
 AI: "I'll submit a PTO request for you. You have 12 days remaining."
 
-┌─────────────────────────────────────────────────────────┐
+┌────────────────────────────────────────────────────────┐
 │ 🏖️ Time Off Request                                    │
-├─────────────────────────────────────────────────────────┤
+├────────────────────────────────────────────────────────┤
 │ Type: [PTO ▼]      Date: [Jan 24, 2026]                │
-│ Duration: ● Full Day  ○ Half Day (AM)  ○ Half Day (PM)│
+│ Duration: ● Full Day  ○ Half Day (AM)  ○ Half Day (PM) │
 │ Reason: Medical appointment (optional)                 │
-│                                                         │
-│ Manager: Sarah Johnson                                  │
+│                                                        │
+│ Manager: Sarah Johnson                                 │
 │ Coverage: [Select backup ▼] or "AI will suggest"       │
-│                                                         │
+│                                                        │
 │ [Submit Request]  [Check Team Calendar First]          │
-└─────────────────────────────────────────────────────────┘
+└────────────────────────────────────────────────────────┘
 
 Employee: "Actually make it half day afternoon"
 
@@ -171,22 +171,22 @@ Tech: "Starting the HVAC repair at Contoso building B"
 
 AI: "Found your 10 AM appointment. Here's the work order:"
 
-┌─────────────────────────────────────────────────────────┐
+┌────────────────────────────────────────────────────────┐
 │ 🔧 Work Order #WO-4521                    [In Progress]│
-├─────────────────────────────────────────────────────────┤
+├────────────────────────────────────────────────────────┤
 │ Site: Contoso Corp - Building B, Floor 3               │
 │ Issue: AC unit not cooling, reported 2 days ago        │
 │ Equipment: Carrier 50XC (S/N: AC-8847)                 │
 │ History: Last service 6 months ago (filter replaced)   │
-│                                                         │
-│ Checklist:                                              │
+│                                                        │
+│ Checklist:                                             │
 │ ☑ Check refrigerant levels                             │
 │ ☐ Inspect compressor                                   │
 │ ☐ Test thermostat                                      │
 │ ☐ Clean coils                                          │
 │                                                         │
 │ [Order Parts] [Add Notes] [Request Backup] [Complete]  │
-└─────────────────────────────────────────────────────────┘
+└────────────────────────────────────────────────────────┘
 ```
 
 #### Step 2: Part Ordering with Smart Options
@@ -200,18 +200,18 @@ AI: "I'll check availability and schedule options:"
 │ 📦 Part Needed: CR-440 Compressor                                          │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│ AVAILABILITY CHECK:                                                        │
-│ ┌─────────────────────────────────────────────────────────────────────────┐│
-│ │ ❌ Your truck inventory      — Not in stock                            ││
-│ │ ⚠️  Branch (12 miles away)   — 1 available, pickup by 4 PM today       ││
-│ │ ✅ Warehouse                 — 3 in stock, deliver tomorrow 10 AM      ││
-│ │ 🚐 Mike's truck (8 mi away)  — Has 1, he can meet you in 45 min        ││
-│ └─────────────────────────────────────────────────────────────────────────┘│
+│ AVAILABILITY CHECK:                                                         │
+│ ┌─────────────────────────────────────────────────────────────────────────┐ │
+│ │ ❌ Your truck inventory      — Not in stock                             ││
+│ │ ⚠️  Branch (12 miles away)   — 1 available, pickup by 4 PM today        ││
+│ │ ✅ Warehouse                 — 3 in stock, deliver tomorrow 10 AM       ││
+│ │ 🚐 Mike's truck (8 mi away)  — Has 1, he can meet you in 45 min         ││
+│ └─────────────────────────────────────────────────────────────────────────┘ │
 │                                                                             │
-│ SELECT OPTION:                                                             │
-│ ○ Pick up from branch today (complete repair today)                       │
-│ ● Ship to customer site tomorrow + schedule return visit                  │
-│ ○ Coordinate with Mike (he's on another job, may delay him)               │
+│ SELECT OPTION:                                                              │
+│ ○ Pick up from branch today (complete repair today)                         │
+│ ● Ship to customer site tomorrow + schedule return visit                    │
+│ ○ Coordinate with Mike (he's on another job, may delay him)                 │ 
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -226,19 +226,19 @@ AI: "Got it. Let me check the customer's availability:"
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ 📅 Schedule Return Visit                                                   │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ Part ETA: Tomorrow (Jan 19) by 10:00 AM                                    │
-│ Customer: Contoso Corp - Building B                                        │
+│ Part ETA: Tomorrow (Jan 19) by 10:00 AM                                     │
+│ Customer: Contoso Corp - Building B                                         │
 │                                                                             │
-│ Available slots (after part arrives):                                      │
-│ ┌───────────────────────────────────────────────────────────────────────┐  │
-│ │ ○ Tomorrow 10:30 AM - 12:00 PM  (first available)                    │  │
-│ │ ● Tomorrow  1:00 PM -  2:30 PM  (customer preferred)                 │  │
-│ │ ○ Tomorrow  3:00 PM -  4:30 PM                                       │  │
-│ └───────────────────────────────────────────────────────────────────────┘  │
+│ Available slots (after part arrives):                                       │
+│ ┌───────────────────────────────────────────────────────────────────────┐   │
+│ │ ○ Tomorrow 10:30 AM - 12:00 PM  (first available)                     │   │
+│ │ ● Tomorrow  1:00 PM -  2:30 PM  (customer preferred)                  │   │
+│ │ ○ Tomorrow  3:00 PM -  4:30 PM                                        │   │
+│ └───────────────────────────────────────────────────────────────────────┘   │
 │                                                                             │
 │ Notify customer: ● Email  ☑ SMS  ○ Call                                    │
 │                                                                             │
-│ [Confirm Order + Schedule]  [Call Customer First]                          │
+│ [Confirm Order + Schedule]  [Call Customer First]                           │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -252,19 +252,19 @@ AI: ✅ "Done! Here's the summary:"
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ ✅ Work Order Updated                                                       │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ TODAY'S VISIT: Marked as "Diagnosis Complete - Parts Ordered"              │
+│ TODAY'S VISIT: Marked as "Diagnosis Complete - Parts Ordered"               │
 │                                                                             │
-│ PART ORDER:                                                                │
-│ • CR-440 Compressor → Contoso Building B                                   │
-│ • ETA: Tomorrow 10:00 AM                                                   │
-│ • Tracking: Will notify you when shipped                                   │
+│ PART ORDER:                                                                 │
+│ • CR-440 Compressor → Contoso Building B                                    │
+│ • ETA: Tomorrow 10:00 AM                                                    │
+│ • Tracking: Will notify you when shipped                                    │
 │                                                                             │
-│ RETURN VISIT SCHEDULED:                                                    │
-│ • Tomorrow 1:00 PM - 2:30 PM                                               │
-│ • Customer notified via Email + SMS                                        │
-│ • Added to your calendar                                                   │
+│ RETURN VISIT SCHEDULED:                                                     │
+│ • Tomorrow 1:00 PM - 2:30 PM                                                │
+│ • Customer notified via Email + SMS                                         │
+│ • Added to your calendar                                                    │
 │                                                                             │
-│ [Add Notes for Next Visit]  [View Updated Schedule]  [Next Job]            │
+│ [Add Notes for Next Visit]  [View Updated Schedule]  [Next Job]             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -276,15 +276,15 @@ For critical situations (e.g., hospital HVAC):
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ ⚡ URGENT: Same-Day Options                                                │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ Customer SLA: Critical (4-hour response)                                   │
+│ Customer SLA: Critical (4-hour response)                                    │
 │                                                                             │
 │ ✅ FASTEST: Branch pickup (12 mi)                                          │
-│    Leave now → Back by 3:45 PM → Complete by 5:30 PM                       │
-│    [Get Directions] [Reserve Part]                                         │
+│    Leave now → Back by 3:45 PM → Complete by 5:30 PM                        │
+│    [Get Directions] [Reserve Part]                                          │
 │                                                                             │
 │ ⚡ ALTERNATIVE: Mike can bring part                                        │
-│    His current job ends ~4 PM → Here by 4:45 PM                            │
-│    [Request Handoff] (Mike gets notified)                                  │
+│    His current job ends ~4 PM → Here by 4:45 PM                             │
+│    [Request Handoff] (Mike gets notified)                                   │
 │                                                                             │
 │ ⏱️ Express delivery: Part by 6 PM today (+$75 fee, customer approval req'd)│
 │    [Request Customer Approval]                                              │
@@ -325,27 +325,27 @@ Manager: "Show me pending expense reports"
 
 AI: "You have 3 pending approvals ($2,847 total):"
 
-┌─────────────────────────────────────────────────────────┐
-│ 💰 Expense Approval Queue                               │
-├─────────────────────────────────────────────────────────┤
+┌────────────────────────────────────────────────────────┐
+│ 💰 Expense Approval Queue                              │
+├────────────────────────────────────────────────────────┤
 │ ┌─────────────────────────────────────────────────────┐│
 │ │ Sarah Chen - Client Dinner        $487    [!Policy] ││
 │ │ Dec 15 • NYC • 4 attendees                          ││
-│ │ [View Receipt] [✓ Approve] [✗ Reject] [? Ask]       ││
+│ │ [View Receipt] [✓ Approve] [✗ Reject] [? Ask]      ││
 │ └─────────────────────────────────────────────────────┘│
 │ ┌─────────────────────────────────────────────────────┐│
 │ │ Mike Ross - Travel to Seattle     $1,245            ││
 │ │ Dec 18-20 • Flight + Hotel + Meals                  ││
-│ │ [View Details] [✓ Approve] [✗ Reject] [? Ask]       ││
+│ │ [View Details] [✓ Approve] [✗ Reject] [? Ask]      ││
 │ └─────────────────────────────────────────────────────┘│
 │ ┌─────────────────────────────────────────────────────┐│
 │ │ Lisa Park - Software License      $1,115  [!Budget] ││
 │ │ Annual renewal • Figma Team                         ││
-│ │ [View Details] [✓ Approve] [✗ Reject] [? Ask]       ││
+│ │ [View Details] [✓ Approve] [✗ Reject] [? Ask]      ││
 │ └─────────────────────────────────────────────────────┘│
-│                                                         │
+│                                                        │
 │ [Approve All Standard] [Bulk Reject] [Export Report]   │
-└─────────────────────────────────────────────────────────┘
+└────────────────────────────────────────────────────────┘
 
 Manager: "What's the policy flag on Sarah's dinner?"
 
@@ -425,56 +425,44 @@ AI: *Updates widget, shows ✓ Approved on Sarah's expense*
 
 ## Next Steps
 
-### Using the Layered Architecture
+### Implementing a New Use Case
 
-This project now includes an extensible **layered architecture** in the `core/` module. To implement any of these use cases:
+This project follows a practical, file-based structure. To implement any of these use cases:
 
 1. **Create the use case structure:**
    ```
    use_cases/{use_case}/
-   ├── __init__.py
-   ├── server.py           # Extend UseCaseServer
-   ├── session.py          # Extend SessionContext
-   ├── domain/
-   │   ├── policies.py     # Extend PolicyEngine (pure business rules)
-   │   └── services.py     # Extend DomainService
-   └── presentation/
-       └── composer.py     # Extend WidgetComposer
+   ├── __init__.py         # Public exports
+   ├── server.py           # Extend BaseChatKitServer
+   ├── tools.py            # @function_tool decorated functions
+   ├── tool_status.py      # Status messages for workflow indicators
+   ├── widgets.py          # Widget builder functions
+   └── cosmos_client.py    # Data access (optional)
    ```
 
-2. **Follow the layer responsibilities:**
+2. **Follow the pattern from retail:**
 
-   | Layer | Responsibility | Example |
-   |-------|----------------|---------|
-   | **Domain** | Pure business rules (no I/O) | Policy violations, approval thresholds |
-   | **Data** | Repository for data access | Query expenses, save approvals |
-   | **Presentation** | Widget composition | Expense card, approval buttons |
-   | **Orchestration** | Wire everything together | Handle approve/reject actions |
+   | File | Responsibility | Example |
+   |------|----------------|---------|
+   | `server.py` | Extend BaseChatKitServer, handle actions | RetailChatKitServer |
+   | `tools.py` | Agent function tools with business logic | lookup_customer, create_return_request |
+   | `tool_status.py` | Workflow status messages per tool | "Looking up customer...", "Done" |
+   | `widgets.py` | Widget builder functions | build_order_card, build_return_options |
+   | `cosmos_client.py` | Cosmos DB data access | Customers, Orders, Returns |
 
-3. **Reference implementations available:**
+3. **Reference implementation:**
    - **Retail Returns**: Full production implementation in `use_cases/retail/`
-   - **Healthcare Scheduling**: Skeleton demonstrating the pattern in `use_cases/healthcare/`
-
-### Implementation Order
-
-For new use cases:
-
-1. **Domain Layer** - Define policies and business rules first (pure Python, easily tested)
-2. **Data Layer** - Create repository/client for data access
-3. **Presentation Layer** - Build WidgetComposer with themed widgets
-4. **Session** - Define flow steps and state tracking
-5. **Server** - Extend UseCaseServer and wire everything together
 
 ### Key Benefits of the Architecture
 
-- **Testability**: Domain layer has no I/O - pure unit tests
-- **Reusability**: Policies can be shared across use cases
-- **Consistency**: All use cases follow the same pattern
-- **Extensibility**: Add new domains without modifying existing code
+- **Simplicity**: Each use case is a self-contained folder
+- **Reusability**: Base server and workflow status are shared
+- **Consistency**: All use cases follow the same file structure
+- **Extensibility**: Copy retail folder and customize for new domains
 
-See [ARCHITECTURE.md](../ARCHITECTURE.md) for detailed documentation on the layered architecture.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed documentation on the architecture.
 
 ---
 
 *Document created: January 18, 2026*
-*Updated: January 22, 2026 - Added layered architecture implementation guide*
+*Updated: January 22, 2026 - Updated to reflect actual project structure*

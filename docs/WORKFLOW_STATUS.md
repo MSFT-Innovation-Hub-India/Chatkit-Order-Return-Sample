@@ -81,9 +81,9 @@ The "lightning" shimmer effect you see is a **skeleton loading animation** built
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| `ToolStatusHooks` | `core/workflow_status.py` | Implements `RunHooks` interface from OpenAI Agents SDK. Receives callbacks when tools start/end. |
-| `ToolExecutionTracker` | `core/workflow_status.py` | Manages workflow state, tracks task indices, calls ChatKit's workflow API. |
-| `create_tool_status_hooks()` | `core/workflow_status.py` | Factory function to create hooks with domain-specific messages. |
+| `ToolStatusHooks` | `workflow_status.py` (root) | Implements `RunHooks` interface from OpenAI Agents SDK. Receives callbacks when tools start/end. |
+| `ToolExecutionTracker` | `workflow_status.py` (root) | Manages workflow state, tracks task indices, calls ChatKit's workflow API. |
+| `create_tool_status_hooks()` | `workflow_status.py` (root) | Factory function to create hooks with domain-specific messages. |
 | Domain Messages | `use_cases/*/tool_status.py` | Maps tool names to user-friendly status text and icons. |
 
 ### Frontend Components (ChatKit React)
@@ -152,7 +152,7 @@ class ToolStatusHooks(RunHooks):
 ```python
 # In your domain's server.py respond() method:
 
-from workflow_status import create_tool_status_hooks
+from workflow_status import create_tool_status_hooks, wrap_for_hosted_tools
 from use_cases.retail.tool_status import RETAIL_TOOL_STATUS_MESSAGES
 
 # Create hooks with domain-specific messages
@@ -170,12 +170,47 @@ result = Runner.run_streamed(
     run_config=RunConfig(model=azure_model),
 )
 
+# Wrap result for hosted tools (file_search, web_search)
+# This enables shimmer progress for server-side tools that don't trigger on_tool_start/end
+wrapped_result = wrap_for_hosted_tools(result, tracker)
+
 # Stream response (includes workflow events automatically)
-async for event in stream_agent_response(agent_context, result):
+async for event in stream_agent_response(agent_context, wrapped_result):
     yield event
 
 # Clean up when done
 await tracker.end_workflow_if_started()
+```
+
+### Hosted Tools (FileSearchTool, WebSearchTool)
+
+Hosted tools like `FileSearchTool` run server-side and don't trigger the normal `on_tool_start`/`on_tool_end` hooks. The `wrap_for_hosted_tools()` function intercepts the raw stream events to detect when these tools are called:
+
+| Event Type | Detected By |
+|------------|-------------|
+| `response.file_search_call.in_progress` | File search starting |
+| `response.file_search_call.searching` | File search in progress |
+| `response.file_search_call.completed` | File search done |
+| `response.web_search_call.*` | Web search events (similar) |
+
+Add entries to your `tool_status.py` for these hosted tools:
+
+```python
+RETAIL_TOOL_STATUS_MESSAGES = {
+    # ... your function tools ...
+    
+    # Hosted tools (FileSearchTool, WebSearchTool)
+    "file_search": (
+        "Searching policy documents...",
+        "Policy information found",
+        "book-open",
+    ),
+    "web_search": (
+        "Searching the web...",
+        "Results found",
+        "globe",
+    ),
+}
 ```
 
 ### ChatKit Workflow API
@@ -251,7 +286,7 @@ YOUR_DOMAIN_TOOL_STATUS_MESSAGES: Dict[str, tuple] = {
 In your domain's `server.py`, add the workflow status hooks:
 
 ```python
-from workflow_status import create_tool_status_hooks
+from workflow_status import create_tool_status_hooks, wrap_for_hosted_tools
 from use_cases.your_domain.tool_status import YOUR_DOMAIN_TOOL_STATUS_MESSAGES
 
 async def respond(self, thread, agent_context):
@@ -274,8 +309,11 @@ async def respond(self, thread, agent_context):
         run_config=RunConfig(model=azure_model),
     )
     
+    # Wrap for hosted tools (file_search, web_search) if using them
+    wrapped_result = wrap_for_hosted_tools(result, tracker)
+    
     # Stream the response
-    async for event in stream_agent_response(agent_context, result):
+    async for event in stream_agent_response(agent_context, wrapped_result):
         yield event
     
     # Clean up workflow when done
