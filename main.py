@@ -5,6 +5,7 @@ Exposes the ChatKit endpoint for retail order returns and serves the frontend.
 """
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -19,6 +20,19 @@ from config import settings
 
 # Import shared Cosmos DB configuration
 from shared.cosmos_config import COSMOS_ENDPOINT, DATABASE_NAME
+
+# Import authentication module
+from auth import (
+    LoginRequest,
+    LoginResponse,
+    hash_password,
+    verify_password,
+    create_session,
+    get_session,
+    delete_session,
+    get_user_id_from_token,
+    get_password_hash_for_customer,
+)
 
 # Import the retail use case ChatKit server and Cosmos DB store
 from use_cases.retail import RetailChatKitServer
@@ -111,8 +125,31 @@ async def chatkit_endpoint(request: Request):
     try:
         body = await request.body()
         
-        # Process the request through ChatKit server
-        result = await server.process(body, {})
+        # Extract user info from auth token (try header first, then cookie)
+        auth_token = request.headers.get("X-Auth-Token")
+        if not auth_token:
+            # Fall back to cookie (set by frontend on login)
+            auth_token = request.cookies.get("auth_token")
+        
+        user_id = None
+        user_session = None
+        if auth_token:
+            user_session = get_session(auth_token)
+            if user_session:
+                user_id = user_session.get("user_id")
+                logger.debug(f"Authenticated request from user: {user_id} ({user_session.get('email')})")
+        
+        # Build context with full user info (for agent to use)
+        context = {
+            "user_id": user_id,
+            "user_email": user_session.get("email") if user_session else None,
+            "user_first_name": user_session.get("first_name") if user_session else None,
+            "user_last_name": user_session.get("last_name") if user_session else None,
+            "user_membership_tier": user_session.get("membership_tier") if user_session else None,
+        }
+        
+        # Process the request through ChatKit server with user context
+        result = await server.process(body, context)
         
         if isinstance(result, StreamingResult):
             return StreamingResponse(
@@ -152,11 +189,11 @@ async def health_check():
 async def get_branding():
     """Return branding configuration for the frontend."""
     return {
-        "name": "Returns Assistant",
-        "tagline": "Quick and easy order returns",
-        "logoUrl": "/static/logo.svg",
-        "primaryColor": "#2563eb",
-        "faviconUrl": "/static/favicon.ico",
+        "name": os.getenv("BRAND_NAME", "Returns Assistant"),
+        "tagline": os.getenv("BRAND_TAGLINE", "Quick and easy order returns"),
+        "logoUrl": os.getenv("BRAND_LOGO_URL", "/static/logo.svg"),
+        "primaryColor": os.getenv("BRAND_PRIMARY_COLOR", "#2563eb"),
+        "faviconUrl": os.getenv("BRAND_FAVICON_URL", "/static/favicon.ico"),
         "prompts": [
             {"label": "📦 Start a return", "prompt": "Hi, I need to return an item"},
             {"label": "👤 I'm Jane Smith", "prompt": "My email is jane.smith@email.com"},
@@ -178,6 +215,111 @@ async def get_branding():
             "⭐ Loyalty tier benefits (Gold/Platinum get free returns)",
             "☁️ Azure OpenAI powered",
         ],
+    }
+
+
+# =============================================================================
+# AUTHENTICATION ENDPOINTS
+# =============================================================================
+
+@app.post("/api/auth/login")
+async def login(request: LoginRequest):
+    """
+    Authenticate user with email and password.
+    Returns a session token on success.
+    """
+    from use_cases.retail.cosmos_client import get_retail_client
+    
+    try:
+        # Look up customer by email
+        client = get_retail_client()
+        customer = client.get_customer_by_email(request.email)
+        
+        if not customer:
+            return LoginResponse(
+                success=False,
+                message="Invalid email or password",
+            )
+        
+        # Get expected password hash (from demo passwords or customer doc)
+        expected_hash = customer.get("password_hash") or get_password_hash_for_customer(request.email)
+        
+        # Verify password
+        if not verify_password(request.password, expected_hash):
+            return LoginResponse(
+                success=False,
+                message="Invalid email or password",
+            )
+        
+        # Create session
+        token = create_session(customer)
+        
+        # Return user info (excluding sensitive data)
+        user_info = {
+            "id": customer["id"],
+            "email": customer["email"],
+            "first_name": customer.get("first_name", ""),
+            "last_name": customer.get("last_name", ""),
+            "membership_tier": customer.get("membership_tier", "Basic"),
+        }
+        
+        logger.info(f"User logged in: {customer['email']}")
+        
+        return LoginResponse(
+            success=True,
+            message="Login successful",
+            token=token,
+            user=user_info,
+        )
+        
+    except Exception as e:
+        logger.error(f"Login error: {e}", exc_info=True)
+        return LoginResponse(
+            success=False,
+            message="An error occurred during login",
+        )
+
+
+@app.post("/api/auth/logout")
+async def logout(request: Request):
+    """
+    Log out the current user by invalidating their session.
+    """
+    # Get token from Authorization header
+    auth_header = request.headers.get("Authorization", "")
+    token = auth_header.replace("Bearer ", "") if auth_header.startswith("Bearer ") else None
+    
+    if token and delete_session(token):
+        return {"success": True, "message": "Logged out successfully"}
+    
+    return {"success": True, "message": "No active session"}
+
+
+@app.get("/api/auth/me")
+async def get_current_user(request: Request):
+    """
+    Get the current logged-in user's info.
+    """
+    # Get token from Authorization header
+    auth_header = request.headers.get("Authorization", "")
+    token = auth_header.replace("Bearer ", "") if auth_header.startswith("Bearer ") else None
+    
+    if not token:
+        return {"authenticated": False, "user": None}
+    
+    session = get_session(token)
+    if not session:
+        return {"authenticated": False, "user": None}
+    
+    return {
+        "authenticated": True,
+        "user": {
+            "id": session["user_id"],
+            "email": session["email"],
+            "first_name": session["first_name"],
+            "last_name": session["last_name"],
+            "membership_tier": session["membership_tier"],
+        }
     }
 
 

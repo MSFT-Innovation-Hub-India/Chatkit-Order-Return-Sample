@@ -12,7 +12,35 @@ This sample implements a complete **retail order returns workflow** with the fol
 - **Return Reasons**: Guided selection of return reasons (defective, wrong item, changed mind, etc.)
 - **Resolution Options**: Support for full refunds, exchanges, and store credit
 - **Shipping Methods**: Multiple return shipping options (prepaid label, drop-off, scheduled pickup)
-- **Return Confirmation**: Complete return request creation with tracking ID and shipping label
+- **Return Confirmation**: Complete return request creation with tracking ID and shipping instructions
+- **Return Policy Info**: Ask about return policies and get consistent, accurate answers
+
+> **Note**: Return policy information (30-day window, restocking fees, store credit bonus, etc.) is hardcoded in the system prompt. In a production system, this would typically be retrieved from a CMS or knowledge base.
+
+## 👤 User Features
+
+This application provides a personalized experience with the following user-facing capabilities:
+
+### Authentication & Login
+- **User Login**: Sign in with email and password to access your personalized experience
+- **Sample Accounts**: Pre-configured test accounts for different membership tiers (Standard, Silver, Gold, Platinum)
+- **Session Persistence**: Stay logged in across browser sessions with secure cookie-based authentication
+
+### Customer Profile
+- **View Customer Card**: Ask the agent "show my customer card" or "show my profile" to see your membership details
+- **Auto-Identification**: Once logged in, the agent automatically recognizes you—no need to provide your email again
+- **Membership Benefits**: See your tier status and associated perks (e.g., Platinum members get fee-free returns)
+
+### Conversation Management
+- **Start New Conversations**: Click "New Chat" to begin a fresh conversation thread at any time
+- **View Past Threads**: Access your conversation history from the sidebar to review previous interactions
+- **Thread Isolation**: Your conversations are private—only you can see threads associated with your account
+- **Persistent History**: All conversations are stored in Azure Cosmos DB and available across sessions
+
+### Smart Agent Behavior
+- **Contextual Greetings**: The agent greets you by name and responds naturally to casual messages
+- **Intent Detection**: The agent waits for you to indicate what you need before showing widgets
+- **Return Completion Awareness**: After completing a return, the agent acknowledges success without repeating the flow
 
 ### Extensible Architecture
 
@@ -95,6 +123,7 @@ Every action in the workflow involves **Azure Cosmos DB** operations:
 - **Eligibility Checks**: Validate return windows and policies
 - **Return Creation**: Insert new return requests with tracking IDs
 - **Thread Persistence**: Store conversation history and session state
+- **User Authentication**: Login-based thread isolation with per-user conversation history
 
 ## 🛠️ Technology Stack
 
@@ -102,7 +131,8 @@ Every action in the workflow involves **Azure Cosmos DB** operations:
 - **ChatKit Protocol**: Backend uses `openai-chatkit` Python library
 - **OpenAI Agents SDK**: Built with `openai-agents` for tool orchestration and agent workflows (uses Responses API, not Chat Completions)
 - **Azure OpenAI**: Powered by Azure OpenAI with GPT-4o model
-- **Azure Cosmos DB**: Persistent storage for orders, customers, and returns
+- **Azure Cosmos DB**: Persistent storage for orders, customers, threads, and returns
+- **User Authentication**: Email/password login with session-based thread isolation
 - **Interactive Widgets**: Rich UI with buttons, forms, order details, and status badges
 - **Tool Execution Status**: ChatGPT-style progress indicators showing real-time tool activity
 - **Customizable Branding**: Easy logo, colors, and styling customization
@@ -190,6 +220,7 @@ chatkit-order-returns/
 │
 ├── docs/                    # Documentation
 │   ├── ADDING_USE_CASES.md  # Guide to add new domains (healthcare, etc.)
+│   ├── AUTHENTICATION.md    # User login, session management, thread isolation
 │   ├── WORKFLOW_STATUS.md   # Tool execution status guide
 │   ├── DUAL_INPUT_ARCHITECTURE.md  # Widget + text input docs
 │   └── AZURE_OPENAI_ADAPTATIONS.md # Azure OpenAI setup
@@ -300,7 +331,21 @@ chatkit-order-returns/
 8. **Open your browser**
    Navigate to `http://localhost:3000`
 
-## 💬 Using the Order Returns Assistant
+## � Demo Login Credentials
+
+The application requires login to isolate conversation history per user. Use these demo credentials:
+
+| Email | Password | Name | Membership Tier |
+|-------|----------|------|-----------------|
+| `jane.smith@email.com` | `demo123` | Jane Smith | Gold |
+| `john.doe@email.com` | `demo123` | John Doe | Basic |
+| `alice.johnson@email.com` | `demo123` | Alice Johnson | Platinum |
+| `bob.wilson@email.com` | `demo123` | Bob Wilson | Basic |
+| `carol.davis@email.com` | `demo123` | Carol Davis | Gold |
+
+> **Note**: These are demo accounts pre-populated in Cosmos DB with sample orders. Gold and Platinum members get fee-free returns.
+
+## �💬 Using the Order Returns Assistant
 
 The ChatKit Order Returns app understands natural language commands:
 

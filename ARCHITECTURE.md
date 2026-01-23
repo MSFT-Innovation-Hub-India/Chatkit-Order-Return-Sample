@@ -3,6 +3,8 @@
 This document explains the modular architecture of this ChatKit sample project, the role of the ChatKit server, and provides a guide for implementing use cases.
 
 > 📊 **Visual Diagrams**: For class diagrams and sequence diagrams, see [docs/DIAGRAMS.md](docs/DIAGRAMS.md)
+> 
+> 🔐 **Authentication**: For user login, session management, and thread isolation, see [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md)
 
 ## Table of Contents
 
@@ -1362,11 +1364,12 @@ async def tool_set_user_selection(
 
 ### The Session Context: Where Both Paths Converge
 
-The **session context** is the shared state that both input paths write to:
+The **session context** is the shared state that both input paths write to. It is stored **per-thread** to ensure isolation between concurrent users:
 
 ```python
-# Session context structure (stored on server instance)
-self._session_context = {
+# Session context structure (stored per-thread for isolation)
+# Access via: self._get_session_context(thread_id)
+session = {
     # Customer identification
     "customer_id": "CUST-1001",
     "customer_name": "Jane Smith",

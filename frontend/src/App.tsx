@@ -1,5 +1,5 @@
 import { ChatKit, useChatKit } from '@openai/chatkit-react';
-import { useState, useEffect, CSSProperties } from 'react';
+import { useState, useEffect, CSSProperties, FormEvent } from 'react';
 import './App.css';
 
 // Branding configuration type
@@ -12,6 +12,22 @@ interface Branding {
   prompts?: { label: string; prompt: string }[];
   howToUse?: string[];
   features?: string[];
+}
+
+// User type
+interface User {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  membership_tier: string;
+}
+
+// Auth state
+interface AuthState {
+  isAuthenticated: boolean;
+  user: User | null;
+  token: string | null;
 }
 
 // Default prompts for Order Returns (fallback)
@@ -50,6 +66,14 @@ function adjustColor(color: string, amount: number): string {
 
 function App() {
   const [branding, setBranding] = useState<Branding | null>(null);
+  const [auth, setAuth] = useState<AuthState>({
+    isAuthenticated: false,
+    user: null,
+    token: null,
+  });
+  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Load branding from backend
   useEffect(() => {
@@ -59,7 +83,84 @@ function App() {
       .catch(err => console.error('Failed to load branding:', err));
   }, []);
 
+  // Check for existing session on mount
+  useEffect(() => {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      // Verify token is still valid
+      fetch('/api/auth/me', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.authenticated) {
+            setAuth({
+              isAuthenticated: true,
+              user: data.user,
+              token: token,
+            });
+          } else {
+            localStorage.removeItem('auth_token');
+          }
+        })
+        .catch(() => localStorage.removeItem('auth_token'));
+    }
+  }, []);
+
+  // Handle login
+  const handleLogin = async (e: FormEvent) => {
+    e.preventDefault();
+    setLoginError(null);
+    setIsLoggingIn(true);
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(loginForm),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        localStorage.setItem('auth_token', data.token);
+        // Also set cookie for ChatKit requests (which can't use custom headers)
+        document.cookie = `auth_token=${data.token}; path=/; max-age=86400; SameSite=Strict`;
+        setAuth({
+          isAuthenticated: true,
+          user: data.user,
+          token: data.token,
+        });
+        setLoginForm({ email: '', password: '' });
+        // Reload to reinitialize ChatKit with new auth context
+        window.location.reload();
+      } else {
+        setLoginError(data.message || 'Login failed');
+      }
+    } catch (err) {
+      setLoginError('An error occurred. Please try again.');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  // Handle logout
+  const handleLogout = async () => {
+    if (auth.token) {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${auth.token}` },
+      });
+    }
+    localStorage.removeItem('auth_token');
+    // Clear the auth cookie
+    document.cookie = 'auth_token=; path=/; max-age=0; SameSite=Strict';
+    setAuth({ isAuthenticated: false, user: null, token: null });
+    // Reload to reset ChatKit state
+    window.location.reload();
+  };
+
   // ChatKit hook - connects to our self-hosted backend
+  // Auth token is passed via cookie (set on login) for ChatKit requests
   const { control } = useChatKit({
     api: {
       // For self-hosted ChatKit, we use url and domainKey
@@ -68,7 +169,9 @@ function App() {
     },
     // Start screen customization - use branding prompts or defaults
     startScreen: {
-      greeting: branding?.tagline || 'Your AI-powered returns management assistant',
+      greeting: auth.isAuthenticated && auth.user
+        ? `Welcome back, ${auth.user.first_name}! How can I help with your returns today?`
+        : (branding?.tagline || 'Your AI-powered returns management assistant'),
       prompts: branding?.prompts || defaultPrompts,
     },
     // Header configuration - minimal since we have our own custom header
@@ -79,9 +182,11 @@ function App() {
     },
     // Composer configuration
     composer: {
-      placeholder: branding?.prompts 
-        ? "Type your message or click a prompt to start..."
-        : "Try: 'I need to return an item' to start the returns process...",
+      placeholder: auth.isAuthenticated
+        ? "Ask about your orders or start a return..."
+        : (branding?.prompts 
+            ? "Type your message or click a prompt to start..."
+            : "Try: 'I need to return an item' to start the returns process..."),
     },
   });
 
@@ -105,7 +210,84 @@ function App() {
         </div>
         <h1 className="header-title">{branding?.name || 'Order Returns'}</h1>
         <span className="header-tagline">{branding?.tagline || 'AI-Powered Returns Management'}</span>
+        
+        {/* User info / Login button */}
+        <div className="header-auth">
+          {auth.isAuthenticated && auth.user ? (
+            <div className="user-info">
+              <span className="user-badge" data-tier={auth.user.membership_tier}>
+                {auth.user.membership_tier}
+              </span>
+              <span className="user-name">
+                {auth.user.first_name} {auth.user.last_name}
+              </span>
+              <button className="logout-btn" onClick={handleLogout}>
+                Logout
+              </button>
+            </div>
+          ) : (
+            <span className="guest-label">Guest Mode</span>
+          )}
+        </div>
       </header>
+
+      {/* Login Modal - Show if not authenticated */}
+      {!auth.isAuthenticated && (
+        <div className="login-overlay">
+          <div className="login-modal">
+            <div className="login-header">
+              <h2>🔐 Sign In</h2>
+              <p>Sign in to access your order history and manage returns</p>
+            </div>
+            
+            <form onSubmit={handleLogin} className="login-form">
+              <div className="form-group">
+                <label htmlFor="email">Email</label>
+                <input
+                  type="email"
+                  id="email"
+                  value={loginForm.email}
+                  onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
+                  placeholder="jane.smith@email.com"
+                  required
+                />
+              </div>
+              
+              <div className="form-group">
+                <label htmlFor="password">Password</label>
+                <input
+                  type="password"
+                  id="password"
+                  value={loginForm.password}
+                  onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                  placeholder="Enter password"
+                  required
+                />
+              </div>
+              
+              {loginError && (
+                <div className="login-error">
+                  ⚠️ {loginError}
+                </div>
+              )}
+              
+              <button type="submit" className="login-btn" disabled={isLoggingIn}>
+                {isLoggingIn ? 'Signing in...' : 'Sign In'}
+              </button>
+            </form>
+            
+            <div className="login-hint">
+              <p><strong>Demo Accounts:</strong></p>
+              <ul>
+                <li>jane.smith@email.com (Gold)</li>
+                <li>rjohnson@company.com (Platinum)</li>
+                <li>m.garcia@inbox.com (Silver)</li>
+              </ul>
+              <p>Password for all: <code>demo123</code></p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main content with sidebar and ChatKit */}
       <div className="main-content">

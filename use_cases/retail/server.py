@@ -7,6 +7,7 @@ It extends BaseChatKitServer and integrates all retail-specific components.
 
 import json
 import logging
+import os
 from typing import Any, AsyncIterator, Optional
 from datetime import datetime, timezone
 
@@ -53,15 +54,30 @@ logger = logging.getLogger(__name__)
 # SYSTEM PROMPT
 # =============================================================================
 
-RETAIL_SYSTEM_PROMPT = """You are a helpful customer service assistant for a retail company, specializing in order returns.
+# Get company name from environment, default to "Zava"
+COMPANY_NAME = os.getenv("BRAND_NAME", "Zava Returns").replace(" Returns", "")
+
+RETAIL_SYSTEM_PROMPT = f"""You are a helpful customer service assistant for {COMPANY_NAME}, specializing in order returns.
 
 Your role is to:
-1. Greet customers warmly and ask how you can help
-2. Identify the customer by name, email, or phone number
+1. Greet customers warmly and help them with returns
+2. If customer is already identified in session state, skip identification and proceed directly
 3. Look up their orders and check return eligibility
 4. Guide them through the return process step by step
 5. Offer alternatives when appropriate (exchanges, store credit with bonus, retention offers)
 6. Create the return request and provide confirmation
+
+CRITICAL - CHECK SESSION STATE FOR LOGGED-IN USER:
+You will receive a [CURRENT SESSION STATE] block. If it shows:
+- "Current customer: [Name] (ID: [customer_id])" - the customer is ALREADY IDENTIFIED!
+- DO NOT ask for their email/name/phone again
+- Greet them by name: "Hi [Name]! How can I help you today?"
+
+WHEN TO SHOW CUSTOMER PROFILE AND ORDERS:
+- If user says "hello", "hi", "hey" or other casual greetings → Just greet them back warmly, do NOT show any widgets
+- If user asks about returns, orders, or wants to return something → THEN call show_customer_profile AND get_returnable_items
+- Examples that should trigger showing orders: "I want to return something", "show my orders", "help with a return", "what can I return"
+- Examples that should NOT trigger showing orders: "hello", "hi there", "hey", "good morning", "thanks"
 
 IMPORTANT GUIDELINES:
 - Always be empathetic and helpful
@@ -70,6 +86,17 @@ IMPORTANT GUIDELINES:
 - Gold and Platinum members get fee-free returns - mention this benefit
 - If an item is outside the return window, apologize and offer alternatives
 - For defective or damaged items, offer expedited processing
+
+RETURN POLICY (use this when customers ask about return policy):
+- Standard return window: 30 days from delivery date
+- Items must be unused and in original packaging
+- Defective/damaged items: Full refund, no restocking fee
+- Changed mind returns: 15% restocking fee (waived for Gold/Platinum members)
+- Store credit option: Get 10% bonus on store credit (e.g., $100 item = $110 credit)
+- Shipping options: Free prepaid label, drop-off at any location, or schedule free pickup
+- Refund processing: 3-5 business days after item received
+- Non-returnable: Gift cards, personalized items, final sale items
+- Extended holiday returns: Items purchased Nov 15 - Dec 31 can be returned until Jan 31
 
 CRITICAL - DO NOT LIST OPTIONS IN TEXT:
 When you call tools like get_return_reasons, get_resolution_options, or get_shipping_options:
@@ -117,9 +144,10 @@ When the user TYPES their selection instead of clicking a button, you must:
    - Then call finalize_return_from_session to create the return (NOT create_return_request!)
 
 FLOW:
-1. Greet and ask for customer identification
-2. Look up customer using lookup_customer tool
-3. Show their returnable items using get_returnable_items tool
+1. CHECK SESSION STATE FIRST - if customer is already identified, greet them by name
+2. WAIT for user to indicate they want to return something before showing widgets
+3a. If not identified and user wants to return, ask for email/name and look up using lookup_customer tool (this shows both customer card and returnable items)
+3b. If already identified (logged in) and user wants to return, call show_customer_profile then get_returnable_items
 4. Let them select items to return (they may select via button OR by typing naturally)
 5. Ask for return reason using get_return_reasons tool
 6. If reason is "changed mind", offer retention discounts with get_retention_offers
@@ -130,6 +158,7 @@ FLOW:
 
 CRITICAL - ONE STEP AT A TIME:
 - Only call ONE widget-triggering tool per response!
+- EXCEPTION: When user explicitly asks to start a return, call BOTH show_customer_profile AND get_returnable_items
 - After selecting an item, ONLY call get_return_reasons - do NOT also call get_resolution_options
 - After selecting a reason, ONLY call get_resolution_options - do NOT also call get_shipping_options
 - Wait for user input between each step
@@ -148,6 +177,13 @@ WHEN USER TYPES INSTEAD OF CLICKING:
 - If they typed the shipping option and all other selections exist in session, call finalize_return_from_session directly
 - Match their text to: PREPAID_LABEL, DROP_OFF, SCHEDULE_PICKUP, or RETURN_TO_STORE
 - Call set_user_selection(shipping, MATCHED_CODE), then immediately call finalize_return_from_session
+
+HANDLING COMPLETED RETURNS:
+- When a return is successfully created, the session will show "return_completed: True" and "last_return_id: RET-XXXXX"
+- DO NOT try to finalize another return when the user says things like "thanks", "thank you", "great", "okay", etc.
+- Simply respond with a friendly closing message like "You're welcome! Your return (RET-XXXXX) is all set. Is there anything else I can help you with?"
+- If the user wants to start ANOTHER return, they should say "start a new return" or "I have another item to return"
+- In that case, reset the flow by calling get_returnable_items to show available items again
 
 Example:
 - User says "return the first item" -> ONLY call get_return_reasons, then STOP and wait
@@ -240,6 +276,31 @@ async def tool_get_customer_orders(ctx: RunContextWrapper["RetailContext"], cust
         return result.get("message", "No orders found")
 
 
+@function_tool(description_override="Show the customer profile card for the currently logged-in/identified customer. Use this at the start of a conversation when a customer is already identified in the session.")
+async def tool_show_customer_profile(ctx: RunContextWrapper["RetailContext"]) -> str:
+    """
+    Show the customer profile card widget for the currently identified customer.
+    This is useful when the customer is already logged in and we want to display their info.
+    """
+    session = getattr(ctx.context, '_session_context', {})
+    customer_id = session.get("customer_id")
+    
+    if not customer_id:
+        return "No customer identified in session. Please look up the customer first."
+    
+    # Look up the full customer details
+    result = lookup_customer(session.get("customer_email", customer_id))
+    
+    if result.get("found") and not result.get("multiple"):
+        customer = result.get("customer", {})
+        ctx.context._show_customer_widget = True
+        ctx.context._customer_data = customer
+        
+        return f"Displaying profile for {customer.get('name', 'Unknown')} ({customer.get('tier', 'Standard')} member)."
+    
+    return f"Could not retrieve profile for customer {customer_id}."
+
+
 @function_tool(description_override="Get items that are eligible for return for a customer. Shows orders with items still within the return window.")
 async def tool_get_returnable_items(ctx: RunContextWrapper["RetailContext"], customer_id: str) -> str:
     """Get items eligible for return."""
@@ -269,6 +330,12 @@ async def tool_check_return_eligibility(ctx: RunContextWrapper["RetailContext"],
 @function_tool(description_override="Get the list of available return reasons to present to the customer.")
 async def tool_get_return_reasons(ctx: RunContextWrapper["RetailContext"]) -> str:
     """Get return reasons."""
+    # Check if return was already completed
+    session = getattr(ctx.context, '_session_context', {})
+    if session.get("return_completed"):
+        last_return_id = session.get("last_return_id", "unknown")
+        return f"A return has already been completed (Return ID: {last_return_id}). If you need to start a new return, please say 'start a new return'."
+    
     result = get_return_reasons()
     reasons = result.get("reasons", []) if isinstance(result, dict) else []
     if reasons:
@@ -281,6 +348,12 @@ async def tool_get_return_reasons(ctx: RunContextWrapper["RetailContext"]) -> st
 @function_tool(description_override="Get available resolution options (refund, exchange, store credit) for a return.")
 async def tool_get_resolution_options(ctx: RunContextWrapper["RetailContext"]) -> str:
     """Get resolution options."""
+    # Check if return was already completed
+    session = getattr(ctx.context, '_session_context', {})
+    if session.get("return_completed"):
+        last_return_id = session.get("last_return_id", "unknown")
+        return f"A return has already been completed (Return ID: {last_return_id}). If you need to start a new return, please say 'start a new return'."
+    
     result = get_resolution_options()
     options = result.get("options", []) if isinstance(result, dict) else []
     if options:
@@ -293,6 +366,12 @@ async def tool_get_resolution_options(ctx: RunContextWrapper["RetailContext"]) -
 @function_tool(description_override="Get available return shipping options (prepaid label, drop-off, pickup).")
 async def tool_get_shipping_options(ctx: RunContextWrapper["RetailContext"]) -> str:
     """Get shipping options."""
+    # Check if return was already completed
+    session = getattr(ctx.context, '_session_context', {})
+    if session.get("return_completed"):
+        last_return_id = session.get("last_return_id", "unknown")
+        return f"A return has already been completed (Return ID: {last_return_id}). If you need to start a new return, please say 'start a new return'."
+    
     result = get_shipping_options()
     options = result.get("options", []) if isinstance(result, dict) else []
     if options:
@@ -476,6 +555,11 @@ async def tool_finalize_return_from_session(ctx: RunContextWrapper["RetailContex
     """
     session = getattr(ctx.context, '_session_context', {})
     
+    # Check if return was already completed in this session
+    if session.get("return_completed"):
+        last_return_id = session.get("last_return_id", "unknown")
+        return f"A return has already been completed in this session (Return ID: {last_return_id}). If you need to start a new return, please say 'start a new return'."
+    
     # Validate we have all required data
     customer_id = session.get("customer_id")
     if not customer_id:
@@ -521,7 +605,9 @@ async def tool_finalize_return_from_session(ctx: RunContextWrapper["RetailContex
     if result.get("id"):
         ctx.context._show_confirmation_widget = True
         ctx.context._confirmation_data = result
-        # Clear session for next return
+        # Mark return as completed and clear selections for potential next return
+        session["return_completed"] = True
+        session["last_return_id"] = result.get("id")
         session["reason_code"] = None
         session["resolution"] = None
         session["shipping_method"] = None
@@ -530,6 +616,30 @@ async def tool_finalize_return_from_session(ctx: RunContextWrapper["RetailContex
         return f"Return request {result['id']} has been created successfully! Status: {result.get('status', 'pending')}. A prepaid shipping label will be emailed to the customer."
     
     return f"Failed to create return request: {result.get('error', 'Unknown error')}. Please try again."
+
+
+@function_tool(description_override="Reset the session to start a new return. Call this when the user wants to process another return after completing one.")
+async def tool_start_new_return(ctx: RunContextWrapper["RetailContext"]) -> str:
+    """
+    Reset the session state to allow the user to start a new return.
+    This clears the return_completed flag and other selection data.
+    """
+    session = getattr(ctx.context, '_session_context', {})
+    
+    # Clear return-related state but keep customer info
+    session["return_completed"] = False
+    session["last_return_id"] = None
+    session["reason_code"] = None
+    session["resolution"] = None
+    session["shipping_method"] = None
+    session["selected_items"] = []
+    session["selected_order_id"] = None
+    session["selected_item_name"] = None
+    session["displayed_orders"] = []
+    
+    ctx.context._session_context = session
+    
+    return "Session reset. Ready to start a new return. I'll fetch your returnable items now."
 
 
 @function_tool(description_override="Process a return for multiple items at once. Use this when the customer wants to return all items or multiple items from an order.")
@@ -614,6 +724,7 @@ def create_retail_agent() -> Agent:
         tools=[
             tool_lookup_customer,
             tool_get_customer_orders,
+            tool_show_customer_profile,
             tool_get_returnable_items,
             tool_check_return_eligibility,
             tool_get_return_reasons,
@@ -627,6 +738,7 @@ def create_retail_agent() -> Agent:
             tool_set_user_selection,
             tool_finalize_return_from_session,
             tool_return_multiple_items,
+            tool_start_new_return,
         ],
     )
 
@@ -912,7 +1024,19 @@ class RetailChatKitServer(BaseChatKitServer):
         """
         super().__init__(data_store)
         self._agent = None
-        self._session_context = {}
+        # Per-thread session contexts: thread_id -> context dict
+        # This ensures concurrent users don't share state
+        self._thread_sessions: dict[str, dict] = {}
+    
+    def _get_session_context(self, thread_id: str) -> dict:
+        """Get or create session context for a specific thread."""
+        if thread_id not in self._thread_sessions:
+            self._thread_sessions[thread_id] = {}
+        return self._thread_sessions[thread_id]
+    
+    def _clear_session_context(self, thread_id: str) -> None:
+        """Clear session context for a thread (e.g., when thread is deleted)."""
+        self._thread_sessions.pop(thread_id, None)
     
     def get_agent(self) -> Agent:
         """Return the retail returns agent."""
@@ -920,12 +1044,15 @@ class RetailChatKitServer(BaseChatKitServer):
             self._agent = create_retail_agent()
         return self._agent
     
-    def _build_context_summary(self) -> str:
+    def _build_context_summary(self, thread_id: str) -> str:
         """
         Build a summary of the current session context for the agent.
         This helps the agent understand what was previously shown/selected.
+        
+        Args:
+            thread_id: The thread ID to get session context for
         """
-        session = self._session_context
+        session = self._get_session_context(thread_id)
         if not session:
             return ""
         
@@ -965,6 +1092,13 @@ class RetailChatKitServer(BaseChatKitServer):
             parts.append("\nRETURN FLOW PROGRESS:")
             parts.extend(progress)
         
+        # Check if a return was already completed in this session
+        if session.get("return_completed"):
+            last_return_id = session.get("last_return_id", "Unknown")
+            parts.append(f"\n🎉 RETURN ALREADY COMPLETED - Return ID: {last_return_id}")
+            parts.append("DO NOT try to finalize another return. Just respond conversationally.")
+            parts.append("If user wants another return, they should say 'start a new return'.")
+        
         return "\n".join(parts) if parts else ""
 
     async def respond(
@@ -1003,8 +1137,25 @@ class RetailChatKitServer(BaseChatKitServer):
             request_context=context,
         )
         
-        # INJECT SESSION CONTEXT: This allows tools to access previous state
-        agent_context._session_context = self._session_context
+        # INJECT SESSION CONTEXT: Get per-thread session context (thread-isolated)
+        thread_session = self._get_session_context(thread.id)
+        
+        # AUTO-POPULATE: If user is authenticated, pre-fill their customer info
+        if context and isinstance(context, dict) and context.get("user_email"):
+            # Only set if not already identified in this thread
+            if not thread_session.get("customer_id"):
+                # Look up the customer by email to get their customer_id
+                from .tools import lookup_customer
+                result = lookup_customer(context["user_email"])
+                if result.get("found") and not result.get("multiple"):
+                    customer = result.get("customer", {})
+                    thread_session["customer_id"] = customer.get("id")
+                    thread_session["customer_name"] = customer.get("name", "")
+                    thread_session["customer_tier"] = customer.get("tier", "Standard")
+                    thread_session["customer_email"] = context["user_email"]
+                    logger.info(f"Auto-identified logged-in user: {customer.get('name')} ({context['user_email']})")
+        
+        agent_context._session_context = thread_session
         
         # Load conversation history
         converter = ThreadItemConverter()
@@ -1025,13 +1176,13 @@ class RetailChatKitServer(BaseChatKitServer):
         
         # PREPEND SESSION CONTEXT as a system message to give agent context
         # This helps the agent understand references like "items above" or "both items"
-        if self._session_context:
-            context_summary = self._build_context_summary()
+        if thread_session:
+            context_summary = self._build_context_summary(thread.id)
             if context_summary:
                 # Prepend context as a system-like message that the agent can reference
                 context_message = f"[CURRENT SESSION STATE]\n{context_summary}\n[END SESSION STATE]"
                 agent_input = [{"role": "system", "content": context_message}] + agent_input
-                logger.info(f"Injected session context into agent input")
+                logger.info(f"Injected session context for thread {thread.id} into agent input")
         logger.info(f"Agent input includes {len(relevant_items)} messages from conversation history")
         
         # Get the agent
@@ -1065,9 +1216,9 @@ class RetailChatKitServer(BaseChatKitServer):
         # End the workflow if it was started
         await tracker.end_workflow_if_started()
         
-        # SYNC SESSION CONTEXT BACK: Update server's session from agent context
+        # SYNC SESSION CONTEXT BACK: Update thread's session from agent context
         if hasattr(agent_context, '_session_context'):
-            self._session_context.update(agent_context._session_context)
+            thread_session.update(agent_context._session_context)
         
         # Call the post-respond hook for widget streaming
         async for event in self.post_respond_hook(thread, agent_context):
@@ -1083,6 +1234,9 @@ class RetailChatKitServer(BaseChatKitServer):
         """
         Handle widget actions (button clicks, selections, etc.)
         """
+        # Get per-thread session context
+        session = self._get_session_context(thread.id)
+        
         # Action is a Pydantic model with .type and .payload attributes
         action_type = getattr(action, 'type', '') if action else ''
         payload = getattr(action, 'payload', {}) or {}
@@ -1104,18 +1258,18 @@ class RetailChatKitServer(BaseChatKitServer):
         
         # Store context from action
         if action_type == "select_customer":
-            self._session_context["customer_id"] = payload.get("customer_id")
-            self._session_context["customer_name"] = payload.get("name", "")
+            session["customer_id"] = payload.get("customer_id")
+            session["customer_name"] = payload.get("name", "")
         
         elif action_type == "select_return_item":
-            self._session_context["customer_id"] = payload.get("customer_id", "")
-            self._session_context["selected_order_id"] = payload.get("order_id")
-            self._session_context["selected_product_id"] = payload.get("product_id")
-            self._session_context["selected_item_name"] = payload.get("name")
-            self._session_context["unit_price"] = payload.get("unit_price", 0)
-            self._session_context["quantity"] = payload.get("quantity", 1)
+            session["customer_id"] = payload.get("customer_id", "")
+            session["selected_order_id"] = payload.get("order_id")
+            session["selected_product_id"] = payload.get("product_id")
+            session["selected_item_name"] = payload.get("name")
+            session["unit_price"] = payload.get("unit_price", 0)
+            session["quantity"] = payload.get("quantity", 1)
             # Also store in selected_items list for finalize_return_from_session
-            self._session_context["selected_items"] = [{
+            session["selected_items"] = [{
                 "customer_id": payload.get("customer_id", ""),
                 "order_id": payload.get("order_id"),
                 "product_id": payload.get("product_id"),
@@ -1125,14 +1279,14 @@ class RetailChatKitServer(BaseChatKitServer):
             }]
         
         elif action_type == "select_reason":
-            self._session_context["reason_code"] = payload.get("reason_code")
-            self._session_context["reason_details"] = payload.get("reason_details", "")
+            session["reason_code"] = payload.get("reason_code")
+            session["reason_details"] = payload.get("reason_details", "")
         
         elif action_type == "select_resolution":
-            self._session_context["resolution"] = payload.get("resolution")
+            session["resolution"] = payload.get("resolution")
         
         elif action_type == "select_shipping":
-            self._session_context["shipping_method"] = payload.get("shipping_method")
+            session["shipping_method"] = payload.get("shipping_method")
         
         # Generate a text response acknowledging the action
         message_text = action_messages.get(action_type, f"You selected: {action_type}")
@@ -1182,17 +1336,17 @@ class RetailChatKitServer(BaseChatKitServer):
         elif action_type == "select_shipping":
             # After selecting shipping, actually create the return in Cosmos DB
             try:
-                # Gather all context for the return
-                customer_id = self._session_context.get("customer_id", "")
-                order_id = self._session_context.get("selected_order_id", "")
-                product_id = self._session_context.get("selected_product_id", "")
-                item_name = self._session_context.get("selected_item_name", "")
-                unit_price = self._session_context.get("unit_price", 0)
-                quantity = self._session_context.get("quantity", 1)
-                reason_code = self._session_context.get("reason_code", "OTHER")
-                reason_details = self._session_context.get("reason_details", "")
-                resolution = self._session_context.get("resolution", "refund")
-                shipping_method = self._session_context.get("shipping_method", "prepaid_label")
+                # Gather all context for the return (from per-thread session)
+                customer_id = session.get("customer_id", "")
+                order_id = session.get("selected_order_id", "")
+                product_id = session.get("selected_product_id", "")
+                item_name = session.get("selected_item_name", "")
+                unit_price = session.get("unit_price", 0)
+                quantity = session.get("quantity", 1)
+                reason_code = session.get("reason_code", "OTHER")
+                reason_details = session.get("reason_details", "")
+                resolution = session.get("resolution", "refund")
+                shipping_method = session.get("shipping_method", "prepaid_label")
                 
                 # Build items list for the return
                 items = [{
@@ -1214,6 +1368,10 @@ class RetailChatKitServer(BaseChatKitServer):
                 )
                 
                 logger.info(f"Return created successfully: {result}")
+                
+                # Mark return as completed so agent doesn't try to finalize again
+                session["return_completed"] = True
+                session["last_return_id"] = result.get("return_id", "")
                 
                 confirmation = {
                     "id": result.get("return_id", f"RET-{datetime.now().strftime('%Y%m%d%H%M%S')}"),
@@ -1267,7 +1425,9 @@ class RetailChatKitServer(BaseChatKitServer):
                 logger.info(f"Streaming returnable items widget with {len(items_data)} orders")
                 
                 # ALSO store displayed orders in session context for natural language references
-                self._session_context["displayed_orders"] = [
+                # Use per-thread session context for isolation
+                thread_session = self._get_session_context(thread_id)
+                thread_session["displayed_orders"] = [
                     {
                         "order_id": order.get("id"),
                         "order_date": order.get("order_date"),

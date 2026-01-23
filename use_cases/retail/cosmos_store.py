@@ -110,6 +110,21 @@ class CosmosDBStore(Store):
     
     # ----- Store interface implementation -----
     
+    def _get_user_id_from_context(self, context: Any) -> Optional[str]:
+        """Extract user_id from request context if available."""
+        if context is None:
+            return None
+        
+        # Try to get user_id from various context structures
+        if hasattr(context, 'user_id'):
+            return context.user_id
+        if isinstance(context, dict):
+            return context.get('user_id')
+        if hasattr(context, 'state') and isinstance(context.state, dict):
+            return context.state.get('user_id')
+        
+        return None
+    
     async def load_thread(self, thread_id: str, context: Any) -> ThreadMetadata:
         """Load a thread's metadata by id."""
         self._ensure_containers()
@@ -119,6 +134,12 @@ class CosmosDBStore(Store):
                 item=thread_id,
                 partition_key=thread_id,
             )
+            
+            # Optional: Verify ownership if user_id is in context
+            user_id = self._get_user_id_from_context(context)
+            if user_id and item.get("owner_id") and item["owner_id"] != user_id:
+                logger.warning(f"User {user_id} attempted to access thread {thread_id} owned by {item.get('owner_id')}")
+                # For now, allow access but log it. In strict mode, raise an error.
             
             created_at = datetime.fromisoformat(item.get("created_at", datetime.now(timezone.utc).isoformat()))
             
@@ -134,20 +155,25 @@ class CosmosDBStore(Store):
             return await self._create_thread(thread_id, context)
     
     async def _create_thread(self, thread_id: str, context: Any) -> ThreadMetadata:
-        """Create a new thread."""
+        """Create a new thread with optional owner association."""
         self._ensure_containers()
         
         now = datetime.now(timezone.utc)
+        user_id = self._get_user_id_from_context(context)
+        
+        logger.info(f"_create_thread called with thread_id={thread_id}, user_id={user_id}, context type={type(context)}")
         
         thread_doc = {
             "id": thread_id,
             "title": "New Chat",
             "status": "active",
+            "owner_id": user_id,  # Associate thread with user (None if anonymous)
             "created_at": now.isoformat(),
             "updated_at": now.isoformat(),
         }
         
         self._threads_container.upsert_item(thread_doc)
+        logger.info(f"Created thread {thread_id} for user {user_id or 'anonymous'}")
         
         return ThreadMetadata(
             id=thread_id,
@@ -162,21 +188,27 @@ class CosmosDBStore(Store):
         
         now = datetime.now(timezone.utc).isoformat()
         status_str = thread.status.type if thread.status else "active"
+        user_id = self._get_user_id_from_context(context)
         
-        # Try to preserve created_at from existing document
+        # Try to preserve created_at and owner_id from existing document
+        existing_owner_id = None
         try:
             existing = self._threads_container.read_item(
                 item=thread.id,
                 partition_key=thread.id,
             )
             created_at = existing.get("created_at", now)
+            existing_owner_id = existing.get("owner_id")
         except CosmosResourceNotFoundError:
             created_at = now
+            # New thread - set owner from context
+            logger.info(f"save_thread creating new thread {thread.id} for user {user_id or 'anonymous'}")
         
         thread_doc = {
             "id": thread.id,
             "title": thread.title,
             "status": status_str,
+            "owner_id": existing_owner_id if existing_owner_id else user_id,  # Preserve existing or set from context
             "created_at": created_at,
             "updated_at": now,
         }
@@ -358,21 +390,52 @@ class CosmosDBStore(Store):
         order: str,
         context: Any,
     ) -> Page[ThreadMetadata]:
-        """Load a page of threads with pagination."""
+        """Load a page of threads with pagination, filtered by owner if authenticated."""
         self._ensure_containers()
         
         order_dir = "DESC" if order == "desc" else "ASC"
+        user_id = self._get_user_id_from_context(context)
         
-        if after:
-            query = f"""
-                SELECT * FROM c 
-                WHERE c.id > @after
-                ORDER BY c.updated_at {order_dir}
-            """
-            params = [{"name": "@after", "value": after}]
+        logger.info(f"load_threads called with user_id={user_id}, context type={type(context)}, context={context}")
+        
+        # Build query - filter by owner if user is authenticated
+        params = []
+        
+        if user_id:
+            # Authenticated user: show only their threads
+            if after:
+                query = f"""
+                    SELECT * FROM c 
+                    WHERE c.owner_id = @owner_id AND c.id > @after
+                    ORDER BY c.updated_at {order_dir}
+                """
+                params = [
+                    {"name": "@owner_id", "value": user_id},
+                    {"name": "@after", "value": after},
+                ]
+            else:
+                query = f"""
+                    SELECT * FROM c 
+                    WHERE c.owner_id = @owner_id
+                    ORDER BY c.updated_at {order_dir}
+                """
+                params = [{"name": "@owner_id", "value": user_id}]
         else:
-            query = f"SELECT * FROM c ORDER BY c.updated_at {order_dir}"
-            params = []
+            # Anonymous user: show only anonymous threads (no owner_id)
+            if after:
+                query = f"""
+                    SELECT * FROM c 
+                    WHERE (NOT IS_DEFINED(c.owner_id) OR c.owner_id = null) AND c.id > @after
+                    ORDER BY c.updated_at {order_dir}
+                """
+                params = [{"name": "@after", "value": after}]
+            else:
+                query = f"""
+                    SELECT * FROM c 
+                    WHERE NOT IS_DEFINED(c.owner_id) OR c.owner_id = null
+                    ORDER BY c.updated_at {order_dir}
+                """
+                params = []
         
         results = list(self._threads_container.query_items(
             query=query,
@@ -380,6 +443,8 @@ class CosmosDBStore(Store):
             max_item_count=limit + 1,
             enable_cross_partition_query=True,
         ))
+        
+        logger.info(f"load_threads query returned {len(results)} results for user_id={user_id}")
         
         threads = []
         has_more = len(results) > limit
