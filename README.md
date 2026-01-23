@@ -13,9 +13,9 @@ This sample implements a complete **retail order returns workflow** with the fol
 - **Resolution Options**: Support for full refunds, exchanges, and store credit
 - **Shipping Methods**: Multiple return shipping options (prepaid label, drop-off, scheduled pickup)
 - **Return Confirmation**: Complete return request creation with tracking ID and shipping instructions
-- **Return Policy Info**: Ask about return policies and get consistent, accurate answers
+- **Return Policy Info**: Ask about return policies and get accurate answers via vector search (RAG)
 
-> **Note**: Return policy information (30-day window, restocking fees, store credit bonus, etc.) is hardcoded in the system prompt. In a production system, this would typically be retrieved from a CMS or knowledge base.
+> **Note**: Policy questions are answered using Azure OpenAI's file_search tool with a configured vector store (`POLICY_DOCS_VECTOR_STORE_ID`). Upload your policy documents to an Azure OpenAI vector store and configure the ID in `.env` to enable RAG-based policy responses.
 
 ## 👤 User Features
 

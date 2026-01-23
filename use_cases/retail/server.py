@@ -87,16 +87,12 @@ IMPORTANT GUIDELINES:
 - If an item is outside the return window, apologize and offer alternatives
 - For defective or damaged items, offer expedited processing
 
-RETURN POLICY (use this when customers ask about return policy):
-- Standard return window: 30 days from delivery date
-- Items must be unused and in original packaging
-- Defective/damaged items: Full refund, no restocking fee
-- Changed mind returns: 15% restocking fee (waived for Gold/Platinum members)
-- Store credit option: Get 10% bonus on store credit (e.g., $100 item = $110 credit)
-- Shipping options: Free prepaid label, drop-off at any location, or schedule free pickup
-- Refund processing: 3-5 business days after item received
-- Non-returnable: Gift cards, personalized items, final sale items
-- Extended holiday returns: Items purchased Nov 15 - Dec 31 can be returned until Jan 31
+ANSWERING POLICY QUESTIONS:
+When customers ask about return policy, refund timelines, shipping, or any policy-related questions:
+- Use the file_search tool to search the policy documents for accurate, up-to-date information
+- The file_search tool has access to our official return policy documentation
+- Always base your answers on the search results, not assumptions
+- If the search doesn't return relevant results, let the customer know you'll connect them with support
 
 CRITICAL - DO NOT LIST OPTIONS IN TEXT:
 When you call tools like get_return_reasons, get_resolution_options, or get_shipping_options:
@@ -715,31 +711,56 @@ def create_retail_agent() -> Agent:
     """
     Create the retail returns agent with all tools.
     
+    If POLICY_DOCS_VECTOR_STORE_ID is configured, adds file_search tool
+    for RAG-based policy question answering.
+    
     Returns:
         Configured Agent instance
     """
+    from config import settings
+    from agents import FileSearchTool
+    
+    # Base function tools for retail operations
+    function_tools = [
+        tool_lookup_customer,
+        tool_get_customer_orders,
+        tool_show_customer_profile,
+        tool_get_returnable_items,
+        tool_check_return_eligibility,
+        tool_get_return_reasons,
+        tool_get_resolution_options,
+        tool_get_shipping_options,
+        tool_get_retention_offers,
+        tool_create_return_request,
+        tool_get_customer_return_history,
+        tool_calculate_refund_amount,
+        tool_get_session_context,
+        tool_set_user_selection,
+        tool_finalize_return_from_session,
+        tool_return_multiple_items,
+        tool_start_new_return,
+    ]
+    
+    # Check if vector store is configured for policy RAG
+    vector_store_id = settings.policy_docs_vector_store_id
+    
+    if vector_store_id:
+        logger.info(f"Policy vector store configured: {vector_store_id}")
+        # Add FileSearchTool with the configured vector store
+        file_search_tool = FileSearchTool(
+            vector_store_ids=[vector_store_id],
+            max_num_results=settings.policy_search_max_results,
+        )
+        # Combine function tools with file_search
+        all_tools = function_tools + [file_search_tool]
+    else:
+        logger.info("No policy vector store configured - using hardcoded policy info")
+        all_tools = function_tools
+    
     return Agent(
         name="Retail Returns Assistant",
         instructions=RETAIL_SYSTEM_PROMPT,
-        tools=[
-            tool_lookup_customer,
-            tool_get_customer_orders,
-            tool_show_customer_profile,
-            tool_get_returnable_items,
-            tool_check_return_eligibility,
-            tool_get_return_reasons,
-            tool_get_resolution_options,
-            tool_get_shipping_options,
-            tool_get_retention_offers,
-            tool_create_return_request,
-            tool_get_customer_return_history,
-            tool_calculate_refund_amount,
-            tool_get_session_context,
-            tool_set_user_selection,
-            tool_finalize_return_from_session,
-            tool_return_multiple_items,
-            tool_start_new_return,
-        ],
+        tools=all_tools,
     )
 
 
@@ -1189,7 +1210,7 @@ class RetailChatKitServer(BaseChatKitServer):
         agent = self.get_agent()
         
         # Create workflow status hooks for ChatGPT-style progress indicators
-        from workflow_status import create_tool_status_hooks
+        from workflow_status import create_tool_status_hooks, wrap_for_hosted_tools
         from use_cases.retail.tool_status import RETAIL_TOOL_STATUS_MESSAGES
         
         hooks, tracker = create_tool_status_hooks(
@@ -1209,8 +1230,12 @@ class RetailChatKitServer(BaseChatKitServer):
             run_config=RunConfig(model=azure_model),
         )
         
+        # Wrap result to detect hosted tool events (file_search, web_search)
+        # This enables shimmer progress indicators for these server-side tools
+        wrapped_result = wrap_for_hosted_tools(result, tracker)
+        
         # Stream the agent response
-        async for event in stream_agent_response(agent_context, result):
+        async for event in stream_agent_response(agent_context, wrapped_result):
             yield event
         
         # End the workflow if it was started

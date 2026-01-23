@@ -23,14 +23,15 @@ Usage:
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, AsyncIterator, Dict, Optional
 from dataclasses import dataclass, field
 
-from chatkit.types import Workflow, CustomTask, CustomSummary
-from chatkit.agents import AgentContext
+from chatkit.types import Workflow, CustomTask, CustomSummary, ThreadStreamEvent
+from chatkit.agents import AgentContext, stream_agent_response
 
-from agents import RunHooks, Agent, Tool
+from agents import RunHooks, Agent, Tool, RunResultStreaming
 from agents.run_context import RunContextWrapper
+from agents.stream_events import RawResponsesStreamEvent
 
 logger = logging.getLogger(__name__)
 
@@ -279,3 +280,102 @@ def create_tool_status_hooks(
     )
     hooks = ToolStatusHooks(tracker)
     return hooks, tracker
+
+
+# =============================================================================
+# STREAMING WITH HOSTED TOOL STATUS (FILE_SEARCH, WEB_SEARCH)
+# =============================================================================
+
+class HostedToolStreamWrapper:
+    """
+    Wraps a RunResultStreaming to detect hosted tool events (file_search, web_search).
+    
+    Hosted tools like FileSearchTool run server-side and don't trigger local 
+    on_tool_start/on_tool_end hooks. This wrapper intercepts the raw stream events
+    to detect when these tools are called and updates the workflow status accordingly.
+    
+    The wrapper is transparent - it yields all original events while also triggering
+    workflow status updates for hosted tools.
+    """
+    
+    def __init__(self, result: RunResultStreaming, tracker: ToolExecutionTracker):
+        self._result = result
+        self._tracker = tracker
+        self._active_hosted_tools: Dict[str, bool] = {}
+    
+    def __getattr__(self, name):
+        """Delegate all other attributes to the wrapped result."""
+        return getattr(self._result, name)
+    
+    async def stream_events(self):
+        """
+        Wrap stream_events to detect hosted tool events.
+        
+        Yields all original events while also triggering workflow status for:
+        - response.file_search_call.in_progress / .searching / .completed
+        - response.web_search_call.in_progress / .searching / .completed
+        """
+        async for event in self._result.stream_events():
+            # Check for hosted tool events in raw responses
+            if isinstance(event, RawResponsesStreamEvent):
+                raw_event = event.data
+                event_type = getattr(raw_event, 'type', '')
+                
+                # File search events
+                if event_type in ('response.file_search_call.in_progress', 
+                                  'response.file_search_call.searching'):
+                    if 'file_search' not in self._active_hosted_tools:
+                        self._active_hosted_tools['file_search'] = True
+                        await self._tracker.add_tool_task("file_search", is_start=True)
+                        logger.info(f"File search started (event: {event_type})")
+                        
+                elif event_type == 'response.file_search_call.completed':
+                    if 'file_search' in self._active_hosted_tools:
+                        await self._tracker.add_tool_task("file_search", is_start=False)
+                        del self._active_hosted_tools['file_search']
+                        logger.info("File search completed")
+                
+                # Web search events (for future use)
+                elif event_type in ('response.web_search_call.in_progress',
+                                    'response.web_search_call.searching'):
+                    if 'web_search' not in self._active_hosted_tools:
+                        self._active_hosted_tools['web_search'] = True
+                        await self._tracker.add_tool_task("web_search", is_start=True)
+                        logger.info(f"Web search started (event: {event_type})")
+                        
+                elif event_type == 'response.web_search_call.completed':
+                    if 'web_search' in self._active_hosted_tools:
+                        await self._tracker.add_tool_task("web_search", is_start=False)
+                        del self._active_hosted_tools['web_search']
+                        logger.info("Web search completed")
+            
+            # Always yield the original event
+            yield event
+
+
+def wrap_for_hosted_tools(
+    result: RunResultStreaming, 
+    tracker: ToolExecutionTracker
+) -> HostedToolStreamWrapper:
+    """
+    Wrap a RunResultStreaming to detect hosted tool events for workflow status.
+    
+    Use this to wrap the result from Runner.run_streamed before passing to
+    stream_agent_response. This enables shimmer progress indicators for hosted
+    tools like FileSearchTool and WebSearchTool.
+    
+    Args:
+        result: The streaming result from Runner.run_streamed
+        tracker: The ToolExecutionTracker for workflow status
+        
+    Returns:
+        A wrapped result that can be passed to stream_agent_response
+        
+    Usage:
+        result = Runner.run_streamed(agent, input, hooks=hooks)
+        wrapped_result = wrap_for_hosted_tools(result, tracker)
+        
+        async for event in stream_agent_response(agent_context, wrapped_result):
+            yield event
+    """
+    return HostedToolStreamWrapper(result, tracker)

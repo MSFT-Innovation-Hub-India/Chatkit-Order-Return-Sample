@@ -103,4 +103,11 @@ RETAIL_TOOL_STATUS_MESSAGES: Dict[str, tuple] = {
         "History retrieved",
         "clock",
     ),
+    
+    # Policy search (RAG)
+    "file_search": (
+        "Searching policy documents...",
+        "Policy information found",
+        "book-open",
+    ),
 }

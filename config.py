@@ -81,6 +81,18 @@ class Settings(BaseSettings):
         description="URL to favicon"
     )
     
+    # Vector Store Configuration for Policy Documents
+    policy_docs_vector_store_id: str = Field(
+        default="",
+        alias="POLICY_DOCS_VECTOR_STORE_ID",
+        description="Azure OpenAI Vector Store ID for policy documents (enables RAG for policy questions)"
+    )
+    policy_search_max_results: int = Field(
+        default=3,
+        alias="POLICY_SEARCH_MAX_RESULTS",
+        description="Maximum number of results to return from policy vector search"
+    )
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
