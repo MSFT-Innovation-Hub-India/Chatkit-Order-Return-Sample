@@ -1065,6 +1065,44 @@ class RetailChatKitServer(BaseChatKitServer):
             self._agent = create_retail_agent()
         return self._agent
     
+    async def add_feedback(
+        self,
+        thread_id: str,
+        item_ids: list[str],
+        feedback: str,  # "positive" or "negative"
+        context: Any,
+    ) -> None:
+        """
+        Persist user feedback for assistant responses.
+        
+        ChatKit calls this when user clicks thumbs up/down on a message.
+        We store the feedback in Cosmos DB linked to the thread for later review.
+        
+        Args:
+            thread_id: The conversation thread ID
+            item_ids: List of message IDs the feedback applies to
+            feedback: "positive" or "negative"
+            context: Request context (may contain user info)
+        """
+        # Extract user_id from context if available
+        user_id = None
+        if hasattr(context, 'state') and isinstance(context.state, dict):
+            user_id = context.state.get('user_id')
+        elif isinstance(context, dict):
+            user_id = context.get('user_id')
+        
+        # Save to Cosmos DB via our store
+        if hasattr(self.store, 'save_feedback'):
+            await self.store.save_feedback(
+                thread_id=thread_id,
+                item_ids=item_ids,
+                kind=feedback,
+                user_id=user_id,
+            )
+            logger.info(f"Feedback saved: {feedback} for thread {thread_id}, items {item_ids}")
+        else:
+            logger.warning("Store does not support save_feedback - feedback not persisted")
+
     def _build_context_summary(self, thread_id: str) -> str:
         """
         Build a summary of the current session context for the agent.

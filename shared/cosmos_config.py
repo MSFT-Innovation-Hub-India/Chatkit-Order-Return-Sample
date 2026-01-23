@@ -57,6 +57,7 @@ RETAIL_CONTAINER_NAMES = {
 CHATKIT_CONTAINERS = {
     "threads": "ChatKit_Threads",
     "items": "ChatKit_Items",
+    "feedback": "ChatKit_Feedback",  # User feedback on assistant responses
 }
 
 # =============================================================================

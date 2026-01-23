@@ -134,14 +134,80 @@ Every action in the workflow involves **Azure Cosmos DB** operations:
 - **Thread Persistence**: Store conversation history and session state
 - **User Authentication**: Login-based thread isolation with per-user conversation history
 
+### User Feedback (Thumbs Up/Down)
+
+The application includes **ChatKit's built-in feedback feature** that allows users to rate assistant responses with thumbs up 👍 or thumbs down 👎 buttons.
+
+| Feature | Details |
+|---------|---------|
+| **UI** | Thumbs up/down buttons appear on assistant text responses |
+| **When Available** | Feedback is available when the agent responds with text (e.g., Q&A using vector search, policy questions, general inquiries) |
+| **Storage** | Feedback is persisted to Azure Cosmos DB (`ChatKit_Feedback` container) |
+| **Thread Association** | Each feedback record includes `thread_id` and `item_ids` for full conversation context |
+| **User Tracking** | Feedback is linked to the authenticated user who provided it |
+
+**How it works:**
+1. User clicks 👍 or 👎 on an assistant text response
+2. ChatKit sends an `items.feedback` request to the server
+3. Server's `add_feedback()` method saves to Cosmos DB with thread reference
+4. Reviewers can query feedback and see the full conversation context
+
+> 💡 **Tip**: This is particularly useful for evaluating the quality of answers from vector search/RAG-based Q&A, such as when users ask about return policies or product information.
+
+> ⚠️ **Note**: ChatKit's built-in feedback only supports positive/negative ratings. **Feedback comments** (text explaining why) are not available in ChatKit out of the box and are not implemented here. If you need comment-based feedback, you would need to build a custom solution.
+
+#### Viewing Feedback with Conversation Context
+
+Use the provided script to view feedback with full conversation details:
+
+```bash
+python scripts/view_feedback_context.py <thread_id>
+
+# Example
+python scripts/view_feedback_context.py thr_8dad4b9b
+```
+
+Or query Cosmos DB directly:
+
+Run this query on the container name ChatKit_Feedback
+
+```sql
+-- Get all negative feedback (for review)
+SELECT * FROM c 
+WHERE c.kind = 'negative' 
+ORDER BY c.created_at DESC
+```
+
+Take the thread_id for the above feedback and run this query on the container name ChatKit_Items
+```
+-- Get conversation context for a specific thread
+SELECT * FROM c 
+WHERE c.thread_id = '<thread_id>' 
+ORDER BY c._ts
+```
+
+**Feedback document structure:**
+```json
+{
+  "id": "9efada71-ec43-4ad2-b084-7a074eac1017",
+  "thread_id": "thr_8dad4b9b",
+  "item_ids": ["wf_c57aa63c", "msg_089308d3..."],
+  "kind": "positive",
+  "user_id": "CUST-1002",
+  "comment": null,
+  "created_at": "2026-01-23T12:20:44.070439+00:00"
+}
+```
+
 ## 🛠️ Technology Stack
 
 - **Official ChatKit React UI**: Uses OpenAI's `@openai/chatkit-react` components
 - **ChatKit Protocol**: Backend uses `openai-chatkit` Python library
 - **OpenAI Agents SDK**: Built with `openai-agents` for tool orchestration and agent workflows (uses Responses API, not Chat Completions)
 - **Azure OpenAI**: Powered by Azure OpenAI with GPT-4o model
-- **Azure Cosmos DB**: Persistent storage for orders, customers, threads, and returns
+- **Azure Cosmos DB**: Persistent storage for orders, customers, threads, returns, and user feedback
 - **User Authentication**: Email/password login with session-based thread isolation
+- **User Feedback**: ChatKit's built-in thumbs up/down with Cosmos DB persistence
 - **Interactive Widgets**: Rich UI with buttons, forms, order details, and status badges
 - **Tool Execution Status**: ChatGPT-style progress indicators showing real-time tool activity
 - **Customizable Branding**: Easy logo, colors, and styling customization
@@ -260,6 +326,12 @@ chatkit-order-returns/
 │   ├── branding.css         # Customizable brand colors/styles
 │   └── logo.svg             # Default logo (replace with your own)
 │
+├── scripts/
+│   ├── setup_azure_resources.ps1  # Azure setup (PowerShell)
+│   ├── setup_azure_resources.sh   # Azure setup (Bash)
+│   ├── populate_cosmosdb.py       # Load sample data into Cosmos DB
+│   └── view_feedback_context.py   # View feedback with conversation context
+│
 └── infra/
     ├── main.bicep           # Azure infrastructure as code
     └── main.parameters.json # Deployment parameters
@@ -273,8 +345,55 @@ chatkit-order-returns/
 - Node.js 18+ (for React frontend)
 - Azure subscription with:
   - Azure OpenAI with GPT-4o deployment
+  - Azure Cosmos DB (serverless recommended)
   - (Optional) Azure Container Apps for deployment
 - Azure CLI and Azure Developer CLI (azd)
+
+### Setting Up Azure Resources (New Subscription)
+
+If you're setting up in a new subscription, use the provided setup scripts to create all required Azure resources:
+
+**Windows (PowerShell):**
+```powershell
+.\scripts\setup_azure_resources.ps1 -ResourceGroup "my-order-returns-rg" -Location "eastus"
+```
+
+**Linux/macOS (Bash):**
+```bash
+chmod +x scripts/setup_azure_resources.sh
+./scripts/setup_azure_resources.sh --resource-group "my-order-returns-rg" --location "eastus"
+```
+
+This creates:
+- Cosmos DB account (serverless)
+- Database with 13 containers (10 retail + 3 ChatKit)
+- RBAC permissions for your user
+
+After running the setup script:
+1. Update `shared/cosmos_config.py` with the new endpoint
+2. Run `python scripts/populate_cosmosdb.py` to load sample data
+
+### Setting Up the Vector Store (Policy Documents)
+
+The application uses Azure OpenAI's vector search for policy Q&A. The policy manual is located in:
+```
+data/sample/QnA Manuals/
+```
+
+To set up the vector store:
+
+1. **Open Microsoft Foundry** (Azure AI Foundry portal)
+2. **Navigate to your Azure OpenAI resource** (the same endpoint as `AZURE_OPENAI_ENDPOINT` in `.env`)
+3. **Create a new Vector Store**:
+   - Upload the document(s) from `data/sample/QnA Manuals/`
+   - Wait for indexing to complete
+4. **Copy the Vector Store ID** (e.g., `vs_qJ9rnh1DRn8RQrcMs5KojUDW`)
+5. **Update `.env`** with the vector store ID:
+   ```env
+   POLICY_DOCS_VECTOR_STORE_ID=vs_your_vector_store_id
+   ```
+
+> **Note**: The vector store must be created in the same Azure OpenAI resource that the application uses for chat completions.
 
 ### Local Development
 

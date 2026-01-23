@@ -501,3 +501,84 @@ class CosmosDBStore(Store):
     ) -> None:
         """Delete an attachment. Not implemented for this use case."""
         pass
+
+    # =========================================================================
+    # FEEDBACK STORAGE
+    # =========================================================================
+    
+    def _ensure_feedback_container(self):
+        """Ensure the feedback container exists (lazy initialization)."""
+        if hasattr(self, '_feedback_container') and self._feedback_container:
+            return
+        
+        feedback_container_name = CHATKIT_CONTAINERS.get("feedback", "ChatKit_Feedback")
+        try:
+            self._feedback_container = self._database.get_container_client(feedback_container_name)
+            self._feedback_container.read()
+        except CosmosResourceNotFoundError:
+            logger.warning(
+                f"Feedback container '{feedback_container_name}' not found. "
+                f"Feedback will not be persisted until container is created."
+            )
+            self._feedback_container = None
+    
+    async def save_feedback(
+        self,
+        thread_id: str,
+        item_ids: list[str],
+        kind: str,
+        user_id: Optional[str] = None,
+        comment: Optional[str] = None,
+    ) -> dict:
+        """
+        Save user feedback for assistant responses.
+        
+        Args:
+            thread_id: The conversation thread ID
+            item_ids: List of message item IDs the feedback applies to
+            kind: "positive" or "negative"
+            user_id: Optional user ID who gave the feedback
+            comment: Optional comment explaining the feedback
+            
+        Returns:
+            The saved feedback document
+        """
+        self._ensure_feedback_container()
+        
+        if not self._feedback_container:
+            logger.warning("Feedback container not available - feedback not saved")
+            return {}
+        
+        now = datetime.now(timezone.utc)
+        feedback_id = str(uuid.uuid4())
+        
+        feedback_doc = {
+            "id": feedback_id,
+            "thread_id": thread_id,
+            "item_ids": item_ids,
+            "kind": kind,
+            "user_id": user_id,
+            "comment": comment,
+            "created_at": now.isoformat(),
+        }
+        
+        self._feedback_container.upsert_item(feedback_doc)
+        logger.info(f"Saved {kind} feedback for thread {thread_id}, items {item_ids}")
+        
+        return feedback_doc
+    
+    async def get_feedback_for_thread(self, thread_id: str) -> list[dict]:
+        """Get all feedback for a specific thread."""
+        self._ensure_feedback_container()
+        
+        if not self._feedback_container:
+            return []
+        
+        query = "SELECT * FROM c WHERE c.thread_id = @thread_id ORDER BY c.created_at DESC"
+        items = list(self._feedback_container.query_items(
+            query=query,
+            parameters=[{"name": "@thread_id", "value": thread_id}],
+            enable_cross_partition_query=True,
+        ))
+        
+        return items

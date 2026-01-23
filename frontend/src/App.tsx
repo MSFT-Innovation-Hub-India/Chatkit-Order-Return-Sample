@@ -180,6 +180,11 @@ function App() {
         text: '',
       },
     },
+    // Thread item actions - enable feedback buttons (thumbs up/down)
+    threadItemActions: {
+      feedback: true,  // Show thumbs up/down on assistant messages
+      retry: true,     // Allow retrying failed responses
+    },
     // Composer configuration
     composer: {
       placeholder: auth.isAuthenticated

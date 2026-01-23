@@ -9,6 +9,25 @@ Usage:
 Environment:
     COSMOS_ENDPOINT - Override the default Cosmos DB endpoint
     COSMOS_DATABASE - Override the default database name
+
+Containers Required:
+    
+    RETAIL DATA CONTAINERS (populated with sample data):
+    - Retail_Products        (partition: /id)
+    - Retail_Customers       (partition: /id)
+    - Retail_Orders          (partition: /id)
+    - Retail_ReturnReasons   (partition: /code)
+    - Retail_ResolutionOptions (partition: /code)
+    - Retail_ShippingOptions (partition: /code)
+    - Retail_DiscountOffers  (partition: /code)
+    - Retail_Returns         (partition: /id)
+    - Retail_CustomerNotes   (partition: /customer_id)
+    - Retail_DemoScenarios   (partition: /name)
+    
+    CHATKIT CONTAINERS (created empty, populated at runtime):
+    - ChatKit_Threads        (partition: /id) - Conversation thread metadata
+    - ChatKit_Items          (partition: /thread_id) - Messages and widgets
+    - ChatKit_Feedback       (partition: /thread_id) - User feedback (thumbs up/down)
 """
 
 import logging
@@ -29,6 +48,7 @@ from shared.cosmos_config import (
     COSMOS_ENDPOINT,
     DATABASE_NAME,
     RETAIL_CONTAINERS,
+    CHATKIT_CONTAINERS,
 )
 
 # Import sample data
@@ -211,12 +231,23 @@ def main():
         ("demo_scenarios", prepare_demo_scenarios()),
     ]
 
-    # Container info
-    logger.info("\n--- Containers (pre-created via Azure CLI) ---")
+    # Container info - Retail (populated with sample data)
+    logger.info("\n--- Retail Data Containers (pre-created via Azure CLI) ---")
     for key, (container_name, partition_key) in RETAIL_CONTAINERS.items():
         logger.info(f"  {container_name} (partition: {partition_key})")
+    
+    # Container info - ChatKit (created empty, populated at runtime)
+    logger.info("\n--- ChatKit Containers (no sample data, populated at runtime) ---")
+    chatkit_partition_keys = {
+        "threads": "/id",
+        "items": "/thread_id", 
+        "feedback": "/thread_id",
+    }
+    for key, container_name in CHATKIT_CONTAINERS.items():
+        pk = chatkit_partition_keys.get(key, "/id")
+        logger.info(f"  {container_name} (partition: {pk})")
 
-    logger.info("\n--- Populating Data ---")
+    logger.info("\n--- Populating Retail Data ---")
     total_items = 0
     for key, items in data_sets:
         container_name, _ = RETAIL_CONTAINERS[key]
@@ -226,8 +257,22 @@ def main():
         total_items += count
 
     logger.info("\n" + "=" * 60)
-    logger.info(f"COMPLETE: {total_items} total items populated across {len(RETAIL_CONTAINERS)} containers")
+    logger.info(f"COMPLETE: {total_items} total items populated across {len(RETAIL_CONTAINERS)} retail containers")
+    logger.info(f"ChatKit containers ({len(CHATKIT_CONTAINERS)}) are created empty and populated at runtime")
     logger.info("=" * 60)
+    
+    # Print Azure CLI commands for creating all containers
+    logger.info("\n--- Azure CLI Commands to Create All Containers ---")
+    logger.info("# If containers don't exist, run these commands:")
+    logger.info("")
+    logger.info("# Retail containers:")
+    for key, (container_name, partition_key) in RETAIL_CONTAINERS.items():
+        logger.info(f'az cosmosdb sql container create --account-name "common-nosql-db" --database-name "{DATABASE_NAME}" --name "{container_name}" --partition-key-path "{partition_key}" --resource-group "common-svc-rg"')
+    logger.info("")
+    logger.info("# ChatKit containers:")
+    for key, container_name in CHATKIT_CONTAINERS.items():
+        pk = chatkit_partition_keys.get(key, "/id")
+        logger.info(f'az cosmosdb sql container create --account-name "common-nosql-db" --database-name "{DATABASE_NAME}" --name "{container_name}" --partition-key-path "{pk}" --resource-group "common-svc-rg"')
 
 
 if __name__ == "__main__":
