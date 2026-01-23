@@ -553,10 +553,62 @@ Assistant: I'm sorry to hear that! Since this is a defective item, you qualify f
    - Deploy the application
    - Output the application URL
 
+### ChatKit Domain Registration (Required for Production)
+
+The ChatKit React component (`@openai/chatkit-react`) requires **domain verification** with OpenAI Platform for production deployments. Without this, the chat UI will fail to load with a "Domain verification failed" error.
+
+> **Note**: Domain registration is **NOT required for local development** (`localhost`). The ChatKit component automatically allows localhost.
+
+#### How to Register Your Domain
+
+1. **Go to the OpenAI Platform**
+   
+   Navigate to: https://platform.openai.com/settings/organization/security/copilot
+
+2. **Add your production domain**
+   
+   Register your Azure Container App URL (e.g., `chatkit-order-returns.redflower-f47b553c.eastus2.azurecontainerapps.io`)
+
+3. **Copy the Domain Key**
+   
+   After registration, you'll receive a domain key starting with `domain_pk_...`
+
+4. **Build with the domain key**
+   
+   The domain key must be embedded at **build time** (not runtime) because Vite inlines environment variables during the build process.
+
+#### How the Domain Key is Used
+
+| Layer | Location | Purpose |
+|-------|----------|---------|
+| **Dockerfile** | `ARG VITE_CHATKIT_DOMAIN_KEY` | Build-time argument passed during Docker build |
+| **Vite Build** | `ENV VITE_CHATKIT_DOMAIN_KEY` | Exposed to Vite as environment variable |
+| **React App** | `frontend/src/App.tsx` | Reads via `import.meta.env.VITE_CHATKIT_DOMAIN_KEY` |
+| **ChatKit Component** | `<ChatKit domainKey={...} />` | Passed to ChatKit for domain verification |
+
+**Code in `frontend/src/App.tsx`:**
+```tsx
+const chatkitDomainKey = import.meta.env.VITE_CHATKIT_DOMAIN_KEY
+  || (window.location.hostname === 'localhost'
+    ? 'localhost'
+    : window.location.hostname);
+```
+
+The component uses the domain key in priority order:
+1. `VITE_CHATKIT_DOMAIN_KEY` environment variable (if set at build time)
+2. `'localhost'` for local development
+3. Falls back to hostname (will fail verification without proper key)
+
 ### Manual Deployment
 
-1. **Build the Docker image**
+1. **Build the Docker image with domain key**
    ```bash
+   # For production deployment, include the domain key
+   docker build \
+     --build-arg VITE_CHATKIT_DOMAIN_KEY=domain_pk_your_key_here \
+     -t chatkit-order-returns:latest .
+   
+   # For local testing (no domain key needed)
    docker build -t chatkit-order-returns:latest .
    ```
 
@@ -568,8 +620,17 @@ Assistant: I'm sorry to hear that! Since this is a defective item, you qualify f
      chatkit-order-returns:latest
    ```
 
-3. **Deploy to Azure Container Registry**
+3. **Build and push to Azure Container Registry**
    ```bash
+   # Using az acr build (recommended - builds in Azure)
+   az acr build \
+     --registry <your-acr-name> \
+     --resource-group <your-rg> \
+     --image chatkit-order-returns:latest \
+     --build-arg VITE_CHATKIT_DOMAIN_KEY=domain_pk_your_key_here \
+     .
+   
+   # Or using local Docker
    az acr login --name <your-acr-name>
    docker tag chatkit-order-returns:latest <your-acr-name>.azurecr.io/chatkit-order-returns:latest
    docker push <your-acr-name>.azurecr.io/chatkit-order-returns:latest
@@ -582,6 +643,8 @@ Assistant: I'm sorry to hear that! Since this is a defective item, you qualify f
      --template-file infra/main.bicep \
      --parameters baseName=chatkit azureOpenAIEndpoint="https://..." azureOpenAIDeployment=gpt-4o
    ```
+
+> ⚠️ **Important**: If you change domains (e.g., add a custom domain to your Container App), you'll need to register the new domain with OpenAI Platform and rebuild the Docker image with the new domain key.
 
 ## 🔐 Authentication
 

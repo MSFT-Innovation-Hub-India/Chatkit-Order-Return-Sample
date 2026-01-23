@@ -308,6 +308,9 @@ async def get_current_user(request: Request):
     # Get token from Authorization header
     auth_header = request.headers.get("Authorization", "")
     token = auth_header.replace("Bearer ", "") if auth_header.startswith("Bearer ") else None
+    # Fall back to cookie if header is missing
+    if not token:
+        token = request.cookies.get("auth_token")
     
     if not token:
         return {"authenticated": False, "user": None}

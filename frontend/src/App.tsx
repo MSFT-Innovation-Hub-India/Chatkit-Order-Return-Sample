@@ -74,6 +74,13 @@ function App() {
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [chatkitKey, setChatkitKey] = useState(0);
+  const [clientError, setClientError] = useState<string | null>(null);
+  const debugEnabled = new URLSearchParams(window.location.search).has('debug');
+  const chatkitDomainKey = import.meta.env.VITE_CHATKIT_DOMAIN_KEY
+    || (window.location.hostname === 'localhost'
+      ? 'localhost'
+      : window.location.hostname);
 
   // Load branding from backend
   useEffect(() => {
@@ -82,6 +89,37 @@ function App() {
       .then(data => setBranding(data))
       .catch(err => console.error('Failed to load branding:', err));
   }, []);
+
+  // Capture client-side errors for debugging
+  useEffect(() => {
+    if (!debugEnabled) return;
+
+    const onError = (event: ErrorEvent) => {
+      setClientError(event.message || 'Unknown error');
+    };
+
+    const onUnhandledRejection = (event: PromiseRejectionEvent) => {
+      setClientError(String(event.reason) || 'Unhandled promise rejection');
+    };
+
+    window.addEventListener('error', onError);
+    window.addEventListener('unhandledrejection', onUnhandledRejection);
+
+    return () => {
+      window.removeEventListener('error', onError);
+      window.removeEventListener('unhandledrejection', onUnhandledRejection);
+    };
+  }, [debugEnabled]);
+
+  useEffect(() => {
+    if (window.location.hostname !== 'localhost' && !import.meta.env.VITE_CHATKIT_DOMAIN_KEY) {
+      const message = 'Missing VITE_CHATKIT_DOMAIN_KEY for this domain. Register the domain in OpenAI Platform and rebuild.';
+      console.warn(message);
+      if (debugEnabled) {
+        setClientError(message);
+      }
+    }
+  }, [debugEnabled]);
 
   // Check for existing session on mount
   useEffect(() => {
@@ -124,15 +162,16 @@ function App() {
       if (data.success) {
         localStorage.setItem('auth_token', data.token);
         // Also set cookie for ChatKit requests (which can't use custom headers)
-        document.cookie = `auth_token=${data.token}; path=/; max-age=86400; SameSite=Strict`;
+        const secureFlag = window.location.protocol === 'https:' ? '; Secure' : '';
+        document.cookie = `auth_token=${data.token}; path=/; max-age=86400; SameSite=Lax${secureFlag}`;
         setAuth({
           isAuthenticated: true,
           user: data.user,
           token: data.token,
         });
         setLoginForm({ email: '', password: '' });
-        // Reload to reinitialize ChatKit with new auth context
-        window.location.reload();
+        // Reinitialize ChatKit without full page reload
+        setChatkitKey(prev => prev + 1);
       } else {
         setLoginError(data.message || 'Login failed');
       }
@@ -153,10 +192,10 @@ function App() {
     }
     localStorage.removeItem('auth_token');
     // Clear the auth cookie
-    document.cookie = 'auth_token=; path=/; max-age=0; SameSite=Strict';
+    document.cookie = 'auth_token=; path=/; max-age=0; SameSite=Lax';
     setAuth({ isAuthenticated: false, user: null, token: null });
-    // Reload to reset ChatKit state
-    window.location.reload();
+    // Reinitialize ChatKit without full page reload
+    setChatkitKey(prev => prev + 1);
   };
 
   // ChatKit hook - connects to our self-hosted backend
@@ -165,7 +204,7 @@ function App() {
     api: {
       // For self-hosted ChatKit, we use url and domainKey
       url: '/chatkit',
-      domainKey: 'localhost', // Local development
+      domainKey: chatkitDomainKey,
     },
     // Start screen customization - use branding prompts or defaults
     startScreen: {
@@ -342,9 +381,20 @@ function App() {
 
         {/* ChatKit Component - Official OpenAI ChatKit UI */}
         <div className="chat-container">
-          <ChatKit control={control} className="chatkit-widget" />
+          <ChatKit key={chatkitKey} control={control} className="chatkit-widget" />
         </div>
       </div>
+
+      {debugEnabled && (
+        <div className="debug-panel">
+          <div><strong>Debug:</strong></div>
+          <div>Auth: {auth.isAuthenticated ? 'true' : 'false'}</div>
+          <div>User: {auth.user?.email || 'none'}</div>
+          <div>Hostname: {window.location.hostname}</div>
+          <div>ChatKit key: {chatkitKey}</div>
+          {clientError && <div style={{ color: '#d00' }}>Error: {clientError}</div>}
+        </div>
+      )}
     </div>
   );
 }
