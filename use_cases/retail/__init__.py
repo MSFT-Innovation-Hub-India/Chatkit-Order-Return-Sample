@@ -36,32 +36,6 @@ from use_cases.retail.cosmos_store import CosmosDBStore
 # Import tools
 from use_cases.retail.tools import RETAIL_TOOLS, execute_tool
 
-# Import sample data (relocated to data/sample/)
-from data.sample.retail_data import (
-    # Data
-    PRODUCTS,
-    CUSTOMERS,
-    ORDERS,
-    RETURN_REASONS,
-    RESOLUTION_OPTIONS,
-    RETURN_SHIPPING_OPTIONS,
-    DISCOUNT_OFFERS,
-    EXISTING_RETURNS,
-    CUSTOMER_NOTES,
-    DEMO_SCENARIOS,
-    # Helper functions
-    get_customer_by_name,
-    get_customer_by_email,
-    get_customer_by_id,
-    get_orders_for_customer,
-    get_order_by_id,
-    get_product_by_id,
-    enrich_order_with_products,
-    is_item_returnable,
-    calculate_refund,
-    generate_return_label,
-)
-
 __all__ = [
     # Server
     "RetailChatKitServer",
@@ -72,26 +46,4 @@ __all__ = [
     # Tools
     "RETAIL_TOOLS",
     "execute_tool",
-    # Data
-    "PRODUCTS",
-    "CUSTOMERS",
-    "ORDERS",
-    "RETURN_REASONS",
-    "RESOLUTION_OPTIONS",
-    "RETURN_SHIPPING_OPTIONS",
-    "DISCOUNT_OFFERS",
-    "EXISTING_RETURNS",
-    "CUSTOMER_NOTES",
-    "DEMO_SCENARIOS",
-    # Helper functions
-    "get_customer_by_name",
-    "get_customer_by_email",
-    "get_customer_by_id",
-    "get_orders_for_customer",
-    "get_order_by_id",
-    "get_product_by_id",
-    "enrich_order_with_products",
-    "is_item_returnable",
-    "calculate_refund",
-    "generate_return_label",
 ]

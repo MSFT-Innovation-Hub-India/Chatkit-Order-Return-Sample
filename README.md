@@ -372,6 +372,19 @@ This creates:
 After running the setup script:
 1. Update `shared/cosmos_config.py` with the new endpoint
 2. Run `python scripts/populate_cosmosdb.py` to load sample data
+3. Run `python scripts/update_order_dates.py` to make order dates recent (see below)
+
+### Refreshing Order Dates (Return Eligibility)
+
+The sample orders have fixed dates that will eventually fall outside the **30-day return window**, making all items ineligible for returns. Run this script whenever orders stop being returnable:
+
+```bash
+python scripts/update_order_dates.py
+```
+
+This updates all order dates in Cosmos DB to the last 1–10 days and ensures their status is `delivered`, so items are eligible for returns again.
+
+> **Tip**: Run this script any time you see "no items eligible for return" in the demo — it means the current date has moved past the return window of the sample data.
 
 ### Setting Up the Vector Store (Policy Documents)
 
