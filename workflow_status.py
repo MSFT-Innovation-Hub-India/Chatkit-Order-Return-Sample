@@ -152,8 +152,11 @@ class ToolExecutionTracker:
                     icon="check-circle-filled",
                     content=None,
                 )
-                await self.agent_context.update_workflow_task(task, task_index)
-                logger.debug(f"Updated workflow task at index {task_index}: {end_msg}")
+                try:
+                    await self.agent_context.update_workflow_task(task, task_index)
+                    logger.debug(f"Updated workflow task at index {task_index}: {end_msg}")
+                except (IndexError, ValueError) as e:
+                    logger.debug(f"Could not update workflow task at index {task_index}: {e}")
     
     async def end_workflow_if_started(self):
         """End the workflow if it was started."""

@@ -14,6 +14,10 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
+# Disable OpenAI Agents SDK tracing (requires OPENAI_API_KEY which isn't used with Azure AD auth)
+from agents import set_tracing_disabled
+set_tracing_disabled(True)
+
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
